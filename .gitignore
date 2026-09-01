@@ -1,0 +1,11 @@
+.idea
+.DS_Store
+node_modules/
+dist/
+*.log
+.env
+.env.local
+dev.db
+dev.db-journal
+.angular
+tsconfig.tsbuildinfo

@@ -1,0 +1,87 @@
+name: Deploy frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Public API URL (e.g. https://xxx.trycloudflare.com)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  # Priority: manual input > repo/env `API_BASE_URL` variable > (optional) secret
+  API_BASE_URL: ${{ inputs.api_base_url || vars.API_BASE_URL || secrets.API_BASE_URL }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - name: Build (base-href Pages)
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          # User/org repo (<owner>.github.io) is served from the root -> base-href /
+          # Otherwise (project pages) -> base-href /<repo>/
+          if [ "$REPO" = "${OWNER}.github.io" ]; then
+            BASE_HREF="/"
+          else
+            BASE_HREF="/${REPO}/"
+          fi
+          echo "Base href: $BASE_HREF"
+          npx ng build --base-href "$BASE_HREF"
+
+      - name: Inject API URL into assets/api-config.json
+        run: |
+          FILE="dist/artifact-notifier-frontend/browser/assets/api-config.json"
+          URL="${API_BASE_URL:-}"
+          # Normalize: trim + strip trailing /
+          URL="$(echo "$URL" | xargs)"
+          URL="${URL%%/}"
+          echo "API_BASE_URL=${URL:-<same-origin>}"
+          if [ -z "$URL" ]; then
+            echo "WARNING: empty API_BASE_URL -> same-origin (the trycloudflare API won't be reachable from Pages)."
+            echo "  Set it via: Settings > Secrets and variables > Actions > Variables > API_BASE_URL"
+          fi
+          printf '{ "apiBaseUrl": "%s" }\n' "$URL" > "$FILE"
+          cat "$FILE"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist/artifact-notifier-frontend/browser
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

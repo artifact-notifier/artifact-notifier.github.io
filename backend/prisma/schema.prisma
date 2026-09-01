@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  avatarUrl        String?
+  // Primary identity (first provider used). Additional providers are linked
+  // via LinkedIdentity so several OAuth providers can share one account.
+  provider         String
+  providerSubject  String
+  createdAt        DateTime @default(now())
+
+  identities         LinkedIdentity[]
+  preferences      UserPreferences?
+  followedArtifacts FollowedArtifact[]
+  deliveries       NotificationDelivery[]
+}
+
+model LinkedIdentity {
+  id              String   @id @default(cuid())
+  userId          String
+  provider        String
+  providerSubject String
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+}
+
+model UserPreferences {
+  userId                String            @id
+  email                 String
+  notificationMode      NotificationMode  @default(IMMEDIATE)
+  digestIntervalMinutes Int               @default(1440)
+  locale                String            @default("fr")
+  theme                 String            @default("system")
+  notificationChannel   String            @default("email")
+  telegramChatId        String?           @unique
+  telegramUsername    String?
+  lastDigestSentAt      DateTime?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FollowedArtifact {
+  id         String   @id @default(cuid())
+  userId     String
+  ecosystem  Ecosystem
+  coordinates String
+  currentVersion String?
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events     ArtifactVersionEvent[]
+
+  @@unique([userId, ecosystem, coordinates])
+}
+
+model ArtifactVersionEvent {
+  id                  String   @id @default(cuid())
+  followedArtifactId  String
+  ecosystem           Ecosystem
+  coordinates         String
+  version             String
+  publishedAt         DateTime @default(now())
+
+  followedArtifact    FollowedArtifact @relation(fields: [followedArtifactId], references: [id], onDelete: Cascade)
+  deliveries          NotificationDelivery[]
+
+  @@unique([followedArtifactId, version])
+}
+
+model NotificationDelivery {
+  id        String            @id @default(cuid())
+  eventId   String
+  userId    String
+  status    DeliveryStatus    @default(PENDING)
+  channel   String            @default("email")
+  sentAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  event     ArtifactVersionEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId, channel])
+}
+
+model ListenerSequence {
+  id    String @id
+  value String
+}
+
+enum Ecosystem {
+  NPM
+  MAVEN
+  PYPI
+  TEST
+}
+
+enum NotificationMode {
+  IMMEDIATE
+  DIGEST
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}

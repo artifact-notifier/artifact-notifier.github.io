@@ -1,0 +1,47 @@
+* { box-sizing: border-box; }
+:root {
+  --bg: #f5f6f8;
+  --bg-card: #ffffff;
+  --bg-nav: #111827;
+  --text: #1a1a1a;
+  --text-nav: #ffffff;
+  --muted: #6b7280;
+  --border: #d1d5db;
+  --input-bg: #ffffff;
+  --hover: #f3f4f6;
+  --hover-strong: #eff6ff;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+html.dark {
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --bg-nav: #020617;
+  --text: #e2e8f0;
+  --text-nav: #e2e8f0;
+  --muted: #94a3b8;
+  --border: #334155;
+  --input-bg: #1e293b;
+  --hover: #1e293b;
+  --hover-strong: #334155;
+  --shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+a { color: #2563eb; }
+button { font: inherit; cursor: pointer; }
+.app-nav { display: flex; align-items: center; gap: 1rem; padding: .75rem 1.5rem; background: var(--bg-nav); color: var(--text-nav); }
+.app-nav a { color: var(--text-nav); text-decoration: none; }
+.app-nav .spacer { flex: 1; }
+.btn { padding: .5rem 1rem; border: none; border-radius: 6px; background: #2563eb; color: #fff; }
+.btn.secondary { background: #4b5563; }
+html.dark .btn.secondary { background: #334155; }
+.btn.danger { background: #dc2626; }
+.container { max-width: 880px; margin: 2rem auto; padding: 0 1rem; }
+.card { background: var(--bg-card); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow); border: 1px solid transparent; }
+html.dark .card { border-color: #1e293b; }
+.eco { display: inline-block; font-size: .7rem; padding: .15rem .5rem; border-radius: 999px; background: #e0e7ff; color: #3730a3; }
+html.dark .eco { background: #1e3a8a; color: #c7d2fe; }
+.muted { color: var(--muted); font-size: .85rem; }
+.row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+input, select { padding: .5rem; border: 1px solid var(--border); border-radius: 6px; font: inherit; background: var(--input-bg); color: var(--text); }
+select option { background: var(--bg-card); color: var(--text); }
+.tag { display:inline-block; padding:.2rem .5rem; background: var(--hover); border-radius:6px; margin:.2rem; cursor:pointer; }

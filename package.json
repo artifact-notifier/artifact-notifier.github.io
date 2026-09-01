@@ -1,0 +1,15 @@
+{
+  "name": "artifact-notifier",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time artifact version notifier (npm/Maven/PyPI) with OIDC auth and email notifications",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm --prefix backend run start:dev\" \"npm --prefix frontend run start\"",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "backend:migrate": "npm --prefix backend run db:migrate",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
