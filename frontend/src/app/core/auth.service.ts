@@ -100,11 +100,27 @@ export class AuthService {
         headers: this.authHeaders(),
       });
     } finally {
-      this.setToken(null);
+      this.clearSession();
     }
-    this._user.set(null);
     this.me.reload();
     this.router.navigate(['/login']);
+  }
+
+  /** Called on 401 (expired/invalid session): clear local session once and go to login. */
+  handleUnauthorized() {
+    if (!this._user() && !this._token()) {
+      // Already logged out — just ensure we land on login.
+      if (!this.router.url.includes('/login')) this.router.navigate(['/login']);
+      return;
+    }
+    this.clearSession();
+    this.me.reload();
+    if (!this.router.url.includes('/login')) this.router.navigate(['/login']);
+  }
+
+  private clearSession() {
+    this.setToken(null);
+    this._user.set(null);
   }
 
   refresh() {
