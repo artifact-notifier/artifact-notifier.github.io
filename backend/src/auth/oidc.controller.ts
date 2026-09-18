@@ -1,7 +1,10 @@
 import {
+  Body,
   Controller,
+  Delete,
   Get,
   Param,
+  Post,
   Query,
   Req,
   Res,
@@ -20,6 +23,7 @@ import { OidcService } from './oidc.service';
 import { UsersService } from './users.service';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from './decorators';
+import { CurrentUser, AuthedUser } from './decorators';
 import {JwtAuthGuard} from "./jwt-auth.guard";
 
 @Controller('auth')
@@ -51,6 +55,85 @@ export class OidcController {
   @Get('providers')
   providers() {
     return this.oidc.listProviders();
+  }
+
+  @Get('links')
+  @UseGuards(JwtAuthGuard)
+  async links(@CurrentUser() user: AuthedUser) {
+    const linked = await this.users.listLinkedProviders(user.sub);
+    const all = this.oidc.listProviders();
+    return all.map((p) => ({ ...p, linked: linked.includes(p.key) }));
+  }
+
+  @Post('link-token')
+  @UseGuards(JwtAuthGuard)
+  linkToken(@CurrentUser() user: AuthedUser) {
+    // One-time token consumed by GET :provider/link: full-page OAuth
+    // navigation can't carry the Authorization header (esp. cross-origin),
+    // so this bridges the session across the round-trip.
+    return { token: this.oidc.createLinkToken(user.sub) };
+  }
+
+  @Get('merge/preview')
+  @UseGuards(JwtAuthGuard)
+  async mergePreview(@CurrentUser() user: AuthedUser, @Query('token') token: string) {
+    const m = this.oidc.peekMerge(token || '');
+    if (!m || m.toUserId !== user.sub) throw new UnauthorizedException('Invalid or expired merge request');
+    return { token, ...(await this.users.mergePreview(m.toUserId, m.fromUserId)) };
+  }
+
+  @Post('merge/confirm')
+  @UseGuards(JwtAuthGuard)
+  async mergeConfirm(@CurrentUser() user: AuthedUser, @Body() body: { token: string }) {
+    const m = this.oidc.consumeMerge(body?.token || '');
+    if (!m || m.toUserId !== user.sub) throw new UnauthorizedException('Invalid or expired merge request');
+    return this.users.mergeAccounts(m.toUserId, m.fromUserId);
+  }
+
+  @Delete('account')
+  @UseGuards(JwtAuthGuard)
+  async deleteAccount(@CurrentUser() user: AuthedUser) {
+    return this.users.deleteAccount(user.sub);
+  }
+
+  @Delete(':provider/link')
+  @UseGuards(JwtAuthGuard)
+  async unlink(@CurrentUser() user: AuthedUser, @Param('provider') provider: string) {
+    return this.users.unlinkProvider(user.sub, provider.toLowerCase());
+  }
+
+  @Public()
+  @Get(':provider/link')
+  async link(
+    @Param('provider') provider: string,
+    @Query('token') token: string,
+    @Res() res: Response,
+  ) {
+    const hashPrefix = this.frontendUrl().includes('#') ? this.frontendUrl() : `${this.frontendUrl()}/#`;
+    try {
+      const userId = this.oidc.consumeLinkToken(token || '');
+      if (!userId) {
+        return res.redirect(`${hashPrefix}/preferences?error=invalid_link_token`);
+      }
+      const oidcConfig = await this.oidc.getClient(provider);
+      const codeVerifier = randomPKCECodeVerifier();
+      const state = randomState();
+      const codeChallenge = await calculatePKCECodeChallenge(codeVerifier);
+
+      this.oidc.storeVerifier(state, codeVerifier, provider, userId);
+
+      const cfg = this.oidc.getProviderConfig(provider);
+      const redirectTo = buildAuthorizationUrl(oidcConfig, {
+        scope: cfg.scopes.join(' '),
+        redirect_uri: this.oidc.redirectUriFor(provider),
+        state,
+        code_challenge: codeChallenge,
+        code_challenge_method: 'S256',
+      });
+      return res.redirect(redirectTo.href);
+    } catch (e) {
+      throw new UnauthorizedException((e as Error).message);
+    }
   }
 
   @Public()
@@ -93,12 +176,14 @@ export class OidcController {
     // /auth/callback#access_token=... would 404 on static hosting and clash
     // with the router's own use of `#`.
     const hashPrefix = this.frontendUrl().includes('#') ? this.frontendUrl() : `${this.frontendUrl()}/#`;
-    if (error) {
-      return res.redirect(`${hashPrefix}/login?error=${encodeURIComponent(error)}`);
-    }
     const verifier = this.oidc.consumeVerifier(state);
+    // Link-flow errors go back to preferences (the session is still valid).
+    const dest = verifier?.linkUserId ? 'preferences' : 'login';
+    if (error) {
+      return res.redirect(`${hashPrefix}/${dest}?error=${encodeURIComponent(error)}`);
+    }
     if (!verifier || verifier.provider !== provider || !code) {
-      return res.redirect(`${hashPrefix}/login?error=invalid_state`);
+      return res.redirect(`${hashPrefix}/${dest}?error=invalid_state`);
     }
 
     const oidcConfig = await this.oidc.getClient(provider);
@@ -126,7 +211,20 @@ export class OidcController {
           claims: () => tokenset.claims(),
         });
       }
+      if (verifier.linkUserId) {
+        const owner = await this.users.findIdentityOwner(profile);
+        if (owner && owner !== verifier.linkUserId) {
+          // Identity belongs to a *different* account: stage a merge
+          // (absorption) pending explicit user confirmation.
+          const mergeToken = this.oidc.createMergeToken(verifier.linkUserId, owner, provider);
+          return res.redirect(`${hashPrefix}/preferences?merge=${mergeToken}`);
+        }
+        await this.users.linkProvider(verifier.linkUserId, profile);
+        // Link flow: keep the current session, just confirm the new identity.
+        return res.redirect(`${hashPrefix}/preferences?linked=${encodeURIComponent(provider)}`);
+      }
       const user = await this.users.findOrCreateFromProfile(profile);
+      if (!user) throw new UnauthorizedException('Account not found after linking');
 
       const token = this.jwt.sign(
         { sub: user.id, email: user.email, provider: user.provider },
@@ -142,8 +240,10 @@ export class OidcController {
       // stays client-side and is parsed by the Angular router as queryParam.
       return res.redirect(`${hashPrefix}/auth/callback?access_token=${token}`);
     } catch (e) {
+      // Link flow errors go back to preferences (session is still valid there).
+      const dest = verifier.linkUserId ? 'preferences' : 'login';
       return res.redirect(
-        `${hashPrefix}/login?error=${encodeURIComponent((e as Error).message)}`,
+        `${hashPrefix}/${dest}?error=${encodeURIComponent((e as Error).message)}`,
       );
     }
   }

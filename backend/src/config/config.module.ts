@@ -19,6 +19,9 @@ export const validationSchema = Joi.object({
   SMTP_USER: Joi.string().required(),
   SMTP_PASS: Joi.string().required(),
   MAIL_FROM: Joi.string().required(),
+  // Minimum digest interval (minutes) enforced when the channel includes email.
+  // Daily (1440) by default; lower it in dev for faster testing (e.g. 1).
+  MAIL_MIN_DIGEST_INTERVAL_MINUTES: Joi.number().integer().min(1).default(1440),
   OIDC_PROVIDERS: Joi.string().default(''),
 });
 

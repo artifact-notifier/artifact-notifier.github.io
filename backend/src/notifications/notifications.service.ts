@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail/mail.service';
@@ -22,6 +23,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly telegram: TelegramService,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -54,6 +56,8 @@ export class NotificationsService {
       });
     }
     if (!prefs || prefs.notificationMode === 'IMMEDIATE') {
+      // Immediate is Telegram-only: mail deliveries stay PENDING for the digest cron,
+      // even if a stale IMMEDIATE+mail preference row exists.
       await this.sendImmediate(user, event, prefs as any);
     }
     // DIGEST: leave PENDING, the cron job processes it.
@@ -77,24 +81,15 @@ export class NotificationsService {
   ): Promise<void> {
     const channels = this.getChannels(prefs);
     const chatId = this.getChatId(user as any, prefs);
-    for (const ch of channels) {
+    // Telegram-only: never send mail immediately (digest cron handles it).
+    const immediateChannels = channels.filter((ch) => ch === 'telegram');
+    for (const ch of immediateChannels) {
       const delivery = await this.prisma.notificationDelivery.findUnique({
         where: { eventId_userId_channel: { eventId: event.id, userId: user.id, channel: ch } },
       });
       if (!delivery || delivery.status !== 'PENDING') continue;
       try {
-        if (ch === 'email') {
-          await this.mail.send(
-            user.email,
-            t(prefs?.locale, 'emailImmediateSubject', event.coordinates, event.version),
-            this.mail.renderImmediate({
-              coordinates: event.coordinates,
-              ecosystem: event.ecosystem,
-              version: event.version,
-            }, prefs?.locale),
-          );
-          await this.prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: 'SENT', sentAt: new Date() } });
-        } else if (ch === 'telegram') {
+        if (ch === 'telegram') {
           if (!chatId) {
             this.logger.warn(`Telegram not linked for user ${user.id}, skipping`);
             await this.prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: 'FAILED' } });
@@ -120,7 +115,10 @@ export class NotificationsService {
     for (const prefs of due) {
       const now = Date.now();
       const last = prefs.lastDigestSentAt?.getTime() || 0;
-      if (now - last < prefs.digestIntervalMinutes * 60_000) continue;
+      // Clamp legacy rows below the mail minimum (mail is daily at best).
+      const minMail = Number(this.config.get('MAIL_MIN_DIGEST_INTERVAL_MINUTES') ?? 1440);
+      const effectiveInterval = Math.max(prefs.digestIntervalMinutes, minMail);
+      if (now - last < effectiveInterval * 60_000) continue;
 
       const pending = await this.prisma.notificationDelivery.findMany({
         where: { userId: prefs.userId, status: 'PENDING' },
@@ -138,7 +136,10 @@ export class NotificationsService {
       for (const [ch, items] of byChannel) {
         try {
           if (ch === 'email') {
-            await this.mail.send(user.email, t(prefs.locale, 'emailDigestSubject', items.length), this.mail.renderDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs.locale));
+            // Notification address (editable in preferences), not the account identity.
+            const to = prefs.email && !/\.local$/i.test(prefs.email) ? prefs.email : user.email;
+            if (/\.local$/i.test(to)) throw new Error('No real email address set (Telegram-only account)');
+            await this.mail.send(to, t(prefs.locale, 'emailDigestSubject', items.length), this.mail.renderDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs.locale));
           } else if (ch === 'telegram') {
             if (!chatId) throw new Error('Telegram not linked');
             await this.telegram.sendMessage(chatId, this.telegram.formatDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs.locale));

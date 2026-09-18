@@ -3,11 +3,12 @@ import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
 import { I18nService } from './core/i18n.service';
 import { ThemeService } from './core/theme.service';
+import { TelegramBannerComponent } from './core/telegram-banner.component';
 import { ToastComponent } from './core/toast.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterLink, RouterOutlet, ToastComponent],
+  imports: [RouterLink, RouterOutlet, TelegramBannerComponent, ToastComponent],
   template: `
     <nav class="app-nav">
       <a routerLink="/" class="brand">{{ i18n.t()('app.title') }}</a>
@@ -31,6 +32,7 @@ import { ToastComponent } from './core/toast.component';
       }
     </nav>
     <div class="container">
+      <app-telegram-banner />
       <router-outlet />
     </div>
     <app-toast />

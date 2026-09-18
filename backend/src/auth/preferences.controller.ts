@@ -1,11 +1,15 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
-import { IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsEmail, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthedUser } from './decorators';
-import { UsersService } from './users.service';
+import { IMMEDIATE_CHANNELS, UsersService } from './users.service';
 import { NotificationMode } from '@prisma/client';
 
 class UpdatePreferencesDto {
+  @IsOptional()
+  @IsEmail()
+  email?: string;
   @IsOptional()
   @IsIn([NotificationMode.IMMEDIATE, NotificationMode.DIGEST])
   notificationMode?: NotificationMode;
@@ -38,7 +42,18 @@ class UpdatePreferencesDto {
 @Controller('preferences')
 @UseGuards(JwtAuthGuard)
 export class PreferencesController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly config: ConfigService,
+  ) {}
+
+  @Get('constraints')
+  constraints() {
+    return {
+      immediateChannels: [...IMMEDIATE_CHANNELS],
+      mailMinDigestMinutes: Number(this.config.get('MAIL_MIN_DIGEST_INTERVAL_MINUTES') ?? 1440),
+    };
+  }
 
   @Get()
   get(@CurrentUser() user: AuthedUser) {

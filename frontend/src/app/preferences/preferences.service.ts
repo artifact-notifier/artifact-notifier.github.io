@@ -14,6 +14,11 @@ export interface Preferences {
   telegramChatId?: string | null;
 }
 
+export interface NotificationConstraints {
+  immediateChannels: string[];
+  mailMinDigestMinutes: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PreferencesService {
   private readonly api = inject(ApiConfigService);
@@ -21,6 +26,10 @@ export class PreferencesService {
 
   // single source to avoid 3x GET /api/preferences
   readonly resource = httpResource<Preferences>(() => this.auth.user() ? { url: this.api.apiUrl('/api/preferences') } : undefined);
+
+  readonly constraints = httpResource<NotificationConstraints>(() =>
+    this.auth.user() ? { url: this.api.apiUrl('/api/preferences/constraints') } : undefined,
+  );
 
   async update(dto: Partial<Preferences>): Promise<Preferences> {
     const res = await fetch(this.api.apiUrl('/api/preferences'), {

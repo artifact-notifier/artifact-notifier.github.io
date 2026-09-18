@@ -93,6 +93,45 @@ export class AuthService {
     window.location.href = this.api.apiUrl(`/api/auth/${provider}`);
   }
 
+  readonly linkedProviders = httpResource<{ key: string; displayName: string; linked: boolean }[]>(() =>
+    this._user() ? { url: this.api.apiUrl('/api/auth/links') } : undefined,
+  );
+
+  /** Start an account-link flow: one-time token bridges the session across OAuth navigation. */
+  async linkProvider(provider: string) {
+    const res = await fetch(this.api.apiUrl('/api/auth/link-token'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) throw await res.json().catch(() => ({ message: 'Link failed' }));
+    const { token } = await res.json();
+    window.location.href = this.api.apiUrl(`/api/auth/${provider}/link?token=${token}`);
+  }
+
+  async unlinkProvider(provider: string): Promise<void> {
+    const res = await fetch(this.api.apiUrl(`/api/auth/${provider}/link`), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) throw await res.json().catch(() => ({ message: 'Unlink failed' }));
+    this.linkedProviders.reload();
+  }
+
+  /** Permanently delete the current account, then land on login. */
+  async deleteAccount(): Promise<void> {
+    const res = await fetch(this.api.apiUrl('/api/auth/account'), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: this.authHeaders(),
+    });
+    if (!res.ok) throw await res.json().catch(() => ({ message: 'Delete failed' }));
+    this.clearSession();
+    this.me.reload();
+    this.router.navigate(['/login']);
+  }
+
   async logout() {
     try {
       await fetch(this.api.apiUrl('/api/auth/logout'), {

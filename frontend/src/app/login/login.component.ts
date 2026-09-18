@@ -1,4 +1,4 @@
-import { Component, inject, effect, AfterViewInit, ElementRef, viewChild } from '@angular/core';
+import { Component, computed, inject, effect, ElementRef, viewChild, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { AuthService } from '../core/auth.service';
 import { I18nService } from '../core/i18n.service';
@@ -40,8 +40,11 @@ import { Router } from '@angular/router';
           <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem">
             <p class="muted" style="font-size:.85rem">{{ i18n.t()('login.telegram') }}</p>
             <div #telegramBox></div>
-            @if (telegramError) { <p style="color:#dc2626;font-size:.85rem">{{ telegramError }}</p> }
+            @if (telegramLoading()) { <p class="muted" style="font-size:.8rem">…</p> }
+            @if (telegramError) { <p style="color:#dc2626;font-size:.85rem">{{ telegramError }} <button class="btn secondary small" (click)="retryWidget()">{{ i18n.t()('telegram.retry') }}</button></p> }
           </div>
+        } @else if (telegram.config.isLoading()) {
+          <p class="muted" style="font-size:.8rem">…</p>
         }
       </div>
     </div>
@@ -66,6 +69,11 @@ export class LoginComponent {
   error = '';
   telegramError = '';
   telegramBox = viewChild<ElementRef>('telegramBox');
+  private widgetInjectedFor = signal<string | null>(null);
+  private widgetFailed = signal(false);
+  protected readonly telegramLoading = computed(
+    () => this.telegram.config.isLoading() && !this.widgetInjectedFor(),
+  );
 
   constructor() {
     const params = new URLSearchParams(window.location.search);
@@ -74,18 +82,49 @@ export class LoginComponent {
     effect(() => {
       const username = this.telegram.botUsername();
       const box = this.telegramBox()?.nativeElement;
-      if (username && box && this.telegram.enabled()) {
-        box.innerHTML = '';
-        const s = document.createElement('script');
-        s.async = true;
-        s.src = 'https://telegram.org/js/telegram-widget.js?22';
-        s.setAttribute('data-telegram-login', username);
-        s.setAttribute('data-size', 'large');
-        s.setAttribute('data-onauth', 'onTelegramAuth(user)');
-        s.setAttribute('data-request-access', 'write');
-        box.appendChild(s);
-      }
+      // Inject once per bot username: re-injecting the Telegram script on every
+      // signal re-evaluation made the widget flicker / randomly disappear.
+      if (!username || !box || !this.telegram.enabled()) return;
+      if (this.widgetInjectedFor() === username && box.querySelector('iframe')) return;
+      this.injectWidget(box, username);
     });
+  }
+
+  private injectWidget(box: HTMLElement, username: string) {
+    this.widgetFailed.set(false);
+    this.telegramError = '';
+    box.innerHTML = '';
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://telegram.org/js/telegram-widget.js?22';
+    s.setAttribute('data-telegram-login', username);
+    s.setAttribute('data-size', 'large');
+    s.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    s.setAttribute('data-request-access', 'write');
+    s.onload = () => this.widgetInjectedFor.set(username);
+    s.onerror = () => {
+      this.widgetFailed.set(true);
+      this.widgetInjectedFor.set(null);
+      this.telegramError = 'Telegram widget failed to load (domain not allowed or network/adblock)';
+    };
+    box.appendChild(s);
+    // Fallback: if Telegram never calls back (no iframe after 5s), allow retry.
+    setTimeout(() => {
+      if (!box.querySelector('iframe') && this.widgetInjectedFor() !== username) {
+        this.widgetFailed.set(true);
+        this.telegramError = 'Telegram widget failed to load (domain not allowed or network/adblock)';
+      }
+    }, 5000);
+  }
+
+  protected retryWidget() {
+    this.widgetInjectedFor.set(null);
+    this.widgetFailed.set(false);
+    this.telegramError = '';
+    const username = this.telegram.botUsername();
+    const box = this.telegramBox()?.nativeElement;
+    if (username && box) this.injectWidget(box, username);
+    else this.telegram.config.reload();
   }
 
   login(key: string) { this.auth.loginWith(key); }

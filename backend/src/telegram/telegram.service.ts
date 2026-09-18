@@ -64,8 +64,7 @@ export class TelegramService {
   async sendMessage(chatId: string, text: string): Promise<void> {
     const token = this.getBotToken();
     if (!token) {
-      this.logger.warn('Telegram bot token not configured, skipping send');
-      return;
+      throw new Error('Telegram bot token not configured (TELEGRAM_BOT_TOKEN)');
     }
     const url = `https://api.telegram.org/bot${token}/sendMessage`;
     const res = await fetch(url, {

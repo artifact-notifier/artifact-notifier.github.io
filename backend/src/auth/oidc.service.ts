@@ -9,15 +9,25 @@ import {
   skipSubjectCheck,
   fetchUserInfo,
 } from 'openid-client';
+import * as crypto from 'crypto';
 import { ProviderConfig, OidcProfile } from './oidc.types';
+
+export interface PendingMerge { toUserId: string; fromUserId: string; provider: string; expiresAt: number }
 
 @Injectable()
 export class OidcService {
   private readonly logger = new Logger(OidcService.name);
   private readonly providers = new Map<string, ProviderConfig>();
   private readonly clients = new Map<string, Configuration>();
-  // In-memory PKCE/state verifiers keyed by state token
-  private readonly verifiers = new Map<string, { codeVerifier: string; provider: string }>();
+  // In-memory PKCE/state verifiers keyed by state token.
+  // `linkUserId` set when the flow links a provider to an existing account
+  // (instead of logging in): the callback attaches the identity and keeps
+  // the current session instead of minting a new one.
+  private readonly verifiers = new Map<string, { codeVerifier: string; provider: string; linkUserId?: string }>();
+  // One-time account-link tokens (minted via authenticated API call, consumed
+  // by the link redirect): full-page navigation can't carry a Bearer token,
+  // so this bridges the logged-in session across the OAuth round-trip.
+  private readonly linkTokens = new Map<string, { userId: string; expiresAt: number }>();
 
   constructor(private readonly config: ConfigService) {
     this.loadProviders();
@@ -210,14 +220,56 @@ export class OidcService {
     };
   }
 
-  storeVerifier(state: string, codeVerifier: string, provider: string) {
-    this.verifiers.set(state, { codeVerifier, provider });
+  storeVerifier(state: string, codeVerifier: string, provider: string, linkUserId?: string) {
+    this.verifiers.set(state, { codeVerifier, provider, linkUserId });
   }
 
-  consumeVerifier(state: string): { codeVerifier: string; provider: string } | undefined {
+  consumeVerifier(state: string): { codeVerifier: string; provider: string; linkUserId?: string } | undefined {
     const v = this.verifiers.get(state);
     if (v) this.verifiers.delete(state);
     return v;
+  }
+
+  /** Mint a short-lived (10 min) one-time token binding a user to a link flow. */
+  createLinkToken(userId: string): string {
+    const token = crypto.randomBytes(32).toString('hex');
+    this.linkTokens.set(token, { userId, expiresAt: Date.now() + 10 * 60_000 });
+    return token;
+  }
+
+  /** Consume a link token (one-time): returns the bound userId or undefined. */
+  consumeLinkToken(token: string): string | undefined {
+    const entry = this.linkTokens.get(token);
+    if (!entry) return undefined;
+    this.linkTokens.delete(token);
+    if (Date.now() > entry.expiresAt) return undefined;
+    return entry.userId;
+  }
+
+  private readonly pendingMerges = new Map<string, PendingMerge>();
+
+  /** Stage an account merge (absorb `fromUserId` into `toUserId`), pending user confirmation. */
+  createMergeToken(toUserId: string, fromUserId: string, provider: string): string {
+    const token = crypto.randomBytes(32).toString('hex');
+    this.pendingMerges.set(token, { toUserId, fromUserId, provider, expiresAt: Date.now() + 10 * 60_000 });
+    return token;
+  }
+
+  /** Read a pending merge without consuming (for the preview screen). */
+  peekMerge(token: string): PendingMerge | undefined {
+    const m = this.pendingMerges.get(token);
+    if (!m || Date.now() > m.expiresAt) {
+      if (m) this.pendingMerges.delete(token);
+      return undefined;
+    }
+    return m;
+  }
+
+  /** Consume a pending merge (one-time, on confirm). */
+  consumeMerge(token: string): PendingMerge | undefined {
+    const m = this.peekMerge(token);
+    if (m) this.pendingMerges.delete(token);
+    return m;
   }
 
   async fetchProfile(
