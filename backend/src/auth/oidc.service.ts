@@ -1,5 +1,6 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Interval } from '@nestjs/schedule';
 import {
   Configuration,
   discovery,
@@ -23,7 +24,7 @@ export class OidcService {
   // `linkUserId` set when the flow links a provider to an existing account
   // (instead of logging in): the callback attaches the identity and keeps
   // the current session instead of minting a new one.
-  private readonly verifiers = new Map<string, { codeVerifier: string; provider: string; linkUserId?: string }>();
+  private readonly verifiers = new Map<string, { codeVerifier: string; provider: string; linkUserId?: string; expiresAt: number }>();
   // One-time account-link tokens (minted via authenticated API call, consumed
   // by the link redirect): full-page navigation can't carry a Bearer token,
   // so this bridges the logged-in session across the OAuth round-trip.
@@ -221,13 +222,29 @@ export class OidcService {
   }
 
   storeVerifier(state: string, codeVerifier: string, provider: string, linkUserId?: string) {
-    this.verifiers.set(state, { codeVerifier, provider, linkUserId });
+    this.verifiers.set(state, { codeVerifier, provider, linkUserId, expiresAt: Date.now() + 10 * 60_000 });
   }
 
   consumeVerifier(state: string): { codeVerifier: string; provider: string; linkUserId?: string } | undefined {
     const v = this.verifiers.get(state);
-    if (v) this.verifiers.delete(state);
+    if (!v) return undefined;
+    this.verifiers.delete(state);
+    if (Date.now() > v.expiresAt) return undefined;
     return v;
+  }
+
+  @Interval(300000)
+  cleanupExpiredTokens() {
+    const now = Date.now();
+    for (const [k, v] of this.verifiers.entries()) {
+      if (now > v.expiresAt) this.verifiers.delete(k);
+    }
+    for (const [k, v] of this.linkTokens.entries()) {
+      if (now > v.expiresAt) this.linkTokens.delete(k);
+    }
+    for (const [k, v] of this.pendingMerges.entries()) {
+      if (now > v.expiresAt) this.pendingMerges.delete(k);
+    }
   }
 
   /** Mint a short-lived (10 min) one-time token binding a user to a link flow. */

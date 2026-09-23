@@ -93,21 +93,6 @@ export abstract class ArtifactListener<T extends string | number> {
       this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (was ${f.currentVersion ?? 'none'})`);
 
       await this.artifacts.markNewVersion(f.followedArtifactId, version);
-      await this.prisma.artifactVersionEvent
-        .upsert({
-          where: {
-            followedArtifactId_version: { followedArtifactId: f.followedArtifactId, version },
-          },
-          create: {
-            followedArtifactId: f.followedArtifactId,
-            ecosystem: this.ecosystem,
-            coordinates: artifactId,
-            version,
-            publishedAt: publishedAt ?? new Date(),
-          },
-          update: {},
-        })
-        .catch(() => undefined);
 
       await this.notifications.onNewVersion(
         f.followedArtifactId,
@@ -115,6 +100,7 @@ export abstract class ArtifactListener<T extends string | number> {
         this.ecosystem,
         artifactId,
         version,
+        publishedAt,
       );
     }
   }

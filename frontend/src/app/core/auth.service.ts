@@ -31,6 +31,7 @@ export class AuthService {
   );
 
   readonly user = this._user.asReadonly();
+  readonly isAuthLoading = computed(() => this.me.isLoading());
   /** Fallback Bearer for cross-origin (third-party cookies blocked). */
   readonly token = this._token.asReadonly();
 
