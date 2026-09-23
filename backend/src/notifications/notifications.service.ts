@@ -36,10 +36,11 @@ export class NotificationsService {
     ecosystem: Ecosystem,
     coordinates: string,
     version: string,
+    publishedAt?: Date,
   ): Promise<void> {
     const event = await this.prisma.artifactVersionEvent.upsert({
       where: { followedArtifactId_version: { followedArtifactId, version } },
-      create: { followedArtifactId, ecosystem, coordinates, version },
+      create: { followedArtifactId, ecosystem, coordinates, version, publishedAt: publishedAt ?? new Date() },
       update: {},
     });
 
@@ -107,27 +108,33 @@ export class NotificationsService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async processDigest() {
-    // Find users in DIGEST mode whose interval has elapsed
-    const due = await this.prisma.userPreferences.findMany({
-      where: { notificationMode: 'DIGEST' },
+    // Find users with PENDING deliveries
+    const pendingUsers = await this.prisma.notificationDelivery.findMany({
+      where: { status: 'PENDING' },
+      select: { userId: true },
+      distinct: ['userId'],
     });
 
-    for (const prefs of due) {
+    for (const { userId } of pendingUsers) {
+      const prefs = await this.prisma.userPreferences.findUnique({ where: { userId } });
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) continue;
+
       const now = Date.now();
-      const last = prefs.lastDigestSentAt?.getTime() || 0;
-      // Clamp legacy rows below the mail minimum (mail is daily at best).
+      const last = prefs?.lastDigestSentAt?.getTime() || 0;
       const minMail = Number(this.config.get('MAIL_MIN_DIGEST_INTERVAL_MINUTES') ?? 1440);
-      const effectiveInterval = Math.max(prefs.digestIntervalMinutes, minMail);
+      const userInterval = prefs?.digestIntervalMinutes ?? 1440;
+      const effectiveInterval = Math.max(userInterval, minMail);
+
+      // In IMMEDIATE mode, email deliveries remain PENDING until the minMail interval passes.
+      // In DIGEST mode, deliveries wait for the effectiveInterval.
       if (now - last < effectiveInterval * 60_000) continue;
 
       const pending = await this.prisma.notificationDelivery.findMany({
-        where: { userId: prefs.userId, status: 'PENDING' },
+        where: { userId, status: 'PENDING' },
         include: { event: true },
       });
       if (pending.length === 0) continue;
-
-      const user = await this.prisma.user.findUnique({ where: { id: prefs.userId } });
-      if (!user) continue;
 
       const chatId = this.getChatId(user as any, prefs as any);
       const byChannel = new Map<string, typeof pending>();
@@ -137,21 +144,21 @@ export class NotificationsService {
         try {
           if (ch === 'email') {
             // Notification address (editable in preferences), not the account identity.
-            const to = prefs.email && !/\.local$/i.test(prefs.email) ? prefs.email : user.email;
+            const to = prefs?.email && !/\.local$/i.test(prefs.email) ? prefs.email : user.email;
             if (/\.local$/i.test(to)) throw new Error('No real email address set (Telegram-only account)');
-            await this.mail.send(to, t(prefs.locale, 'emailDigestSubject', items.length), this.mail.renderDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs.locale));
+            await this.mail.send(to, t(prefs?.locale, 'emailDigestSubject', items.length), this.mail.renderDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs?.locale));
           } else if (ch === 'telegram') {
             if (!chatId) throw new Error('Telegram not linked');
-            await this.telegram.sendMessage(chatId, this.telegram.formatDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs.locale));
+            await this.telegram.sendMessage(chatId, this.telegram.formatDigest(items.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version })), prefs?.locale));
           } else continue;
           await this.prisma.notificationDelivery.updateMany({ where: { id: { in: items.map((d) => d.id) } }, data: { status: 'SENT', sentAt: new Date() } });
           anySent = true;
         } catch (e) {
           await this.prisma.notificationDelivery.updateMany({ where: { id: { in: items.map((d) => d.id) } }, data: { status: 'FAILED' } });
-          this.logger.error(`Digest ${ch} failed for ${prefs.userId}: ${(e as Error).message}`);
+          this.logger.error(`Digest ${ch} failed for ${userId}: ${(e as Error).message}`);
         }
       }
-      if (anySent) await this.prisma.userPreferences.update({ where: { userId: prefs.userId }, data: { lastDigestSentAt: new Date() } });
+      if (anySent) await this.prisma.userPreferences.update({ where: { userId }, data: { lastDigestSentAt: new Date() } });
     }
   }
 }

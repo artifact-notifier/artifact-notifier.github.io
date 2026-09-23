@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthedUser } from '../auth/decorators';
 import { PrismaService } from '../prisma/prisma.service';
@@ -34,9 +34,9 @@ export class TestArtifactsController {
     this.assertDevEnabled();
     const coordinates = dto.coordinates?.trim();
     const version = dto.version?.trim();
-    if (!coordinates || !version) throw new ForbiddenException('coordinates and version required');
-    if (!/^[a-zA-Z0-9._\-\/]+$/.test(coordinates)) {
-      // allow fairly permissive but prevent injection
+    if (!coordinates || !version) throw new BadRequestException('coordinates and version required');
+    if (!/^[a-zA-Z0-9._\-\/@]+$/.test(coordinates)) {
+      throw new BadRequestException('Invalid coordinates format');
     }
 
     // find or create TEST artifact for this user

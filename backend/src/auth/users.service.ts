@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { OidcProfile } from './oidc.types';
-import { NotificationMode } from '@prisma/client';
+import { NotificationMode, Prisma } from '@prisma/client';
 
 /** Channels allowed for immediate notifications. Mail is digest-only (daily at best). */
 export const IMMEDIATE_CHANNELS = ['telegram'] as const;
@@ -344,7 +344,7 @@ export class UsersService {
       }
 
       // 3. Preferences: fill gaps only (survivor wins on conflict).
-      const patch: any = {};
+      const patch: Prisma.UserPreferencesUpdateInput = {};
       if (!to.preferences?.telegramChatId && from.preferences?.telegramChatId) {
         patch.telegramChatId = from.preferences.telegramChatId;
         patch.telegramUsername = from.preferences.telegramUsername;
@@ -420,21 +420,45 @@ export class UsersService {
       );
     }
 
-    const data: any = {};
-    if (dto.email !== undefined) data.email = dto.email;
-    if (dto.notificationMode) data.notificationMode = dto.notificationMode;
-    if (dto.digestIntervalMinutes !== undefined)
-      data.digestIntervalMinutes = dto.digestIntervalMinutes;
-    if (dto.locale && ['fr', 'en', 'es', 'de', 'zh'].includes(dto.locale)) data.locale = dto.locale;
-    if (dto.theme && ['light', 'dark', 'system'].includes(dto.theme)) data.theme = dto.theme;
-    if (dto.notificationChannel && ['email', 'telegram', 'both'].includes(dto.notificationChannel))
-      data.notificationChannel = dto.notificationChannel;
-    if (dto.telegramChatId !== undefined) data.telegramChatId = dto.telegramChatId;
+    const updateData: Prisma.UserPreferencesUpdateInput = {};
+    const createData: Prisma.UserPreferencesUncheckedCreateInput = {
+      userId,
+      email: dto.email ?? user?.email ?? '',
+    };
+
+    if (dto.email !== undefined) {
+      updateData.email = dto.email;
+      createData.email = dto.email;
+    }
+    if (dto.notificationMode) {
+      updateData.notificationMode = dto.notificationMode;
+      createData.notificationMode = dto.notificationMode;
+    }
+    if (dto.digestIntervalMinutes !== undefined) {
+      updateData.digestIntervalMinutes = dto.digestIntervalMinutes;
+      createData.digestIntervalMinutes = dto.digestIntervalMinutes;
+    }
+    if (dto.locale && ['fr', 'en', 'es', 'de', 'zh'].includes(dto.locale)) {
+      updateData.locale = dto.locale;
+      createData.locale = dto.locale;
+    }
+    if (dto.theme && ['light', 'dark', 'system'].includes(dto.theme)) {
+      updateData.theme = dto.theme;
+      createData.theme = dto.theme;
+    }
+    if (dto.notificationChannel && ['email', 'telegram', 'both'].includes(dto.notificationChannel)) {
+      updateData.notificationChannel = dto.notificationChannel;
+      createData.notificationChannel = dto.notificationChannel;
+    }
+    if (dto.telegramChatId !== undefined) {
+      updateData.telegramChatId = dto.telegramChatId;
+      createData.telegramChatId = dto.telegramChatId;
+    }
 
     return this.prisma.userPreferences.upsert({
       where: { userId },
-      create: { userId, email: dto.email ?? user?.email ?? '', ...data },
-      update: data,
+      create: createData,
+      update: updateData,
     });
   }
 }
