@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 TAG="${1:-latest}"
 DB=data/artifact-notifier.db
 
-if [ -f "$DB" ]; then
+if [[ -f "$DB" ]]; then
   mkdir -p backups
   BACKUP="backups/artifact-notifier.db.$(date +%Y%m%d-%H%M%S)"
   sqlite3 "$DB" ".backup $BACKUP"
@@ -23,7 +23,7 @@ docker compose up -d backend
 for _ in $(seq 1 30); do
   code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/preferences/constraints || true)
   # 401 = up (endpoint requires auth)
-  if [ "$code" = "401" ] || [ "$code" = "200" ]; then
+  if [[ "$code" == "401" || "$code" == "200" ]]; then
     echo "Backend up (tag $TAG, HTTP $code)"
     docker compose images backend
     exit 0

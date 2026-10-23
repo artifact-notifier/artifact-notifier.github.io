@@ -9,3 +9,8 @@ dev.db
 dev.db-journal
 .angular
 tsconfig.tsbuildinfo
+backend/test/.tmp/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo

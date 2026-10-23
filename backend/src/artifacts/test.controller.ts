@@ -50,7 +50,7 @@ export class TestArtifactsController {
     const coordinates = dto.coordinates?.trim();
     const version = dto.version?.trim();
     if (!coordinates || !version) throw new BadRequestException('coordinates and version required');
-    if (!/^[a-zA-Z0-9._\-\/@]+$/.test(coordinates)) {
+    if (!/^[\w.@/-]+$/.test(coordinates)) {
       throw new BadRequestException('Invalid coordinates format');
     }
 

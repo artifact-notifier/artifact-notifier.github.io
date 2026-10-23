@@ -59,8 +59,9 @@ export class TelegramService {
     if (!token) throw new UnauthorizedException('Telegram bot not configured');
     const { hash, ...rest } = data;
     // Build data_check_string: sorted keys except hash, as key=value\n
+    // Telegram specifies a plain code-unit order (keys are ASCII), not a locale order
     const checkString = Object.keys(rest)
-      .sort()
+      .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
       .map((k) => `${k}=${(rest as any)[k]}`)
       .join('\n');
     const secret = crypto.createHash('sha256').update(token).digest();
@@ -69,7 +70,7 @@ export class TelegramService {
     const b = Buffer.from(hash || '', 'hex');
     if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
     // Check auth_date freshness (24h)
-    const authDate = parseInt(data.auth_date, 10);
+    const authDate = Number.parseInt(data.auth_date, 10);
     if (Number.isNaN(authDate)) return false;
     const now = Math.floor(Date.now() / 1000);
     if (now - authDate > 86400) return false;

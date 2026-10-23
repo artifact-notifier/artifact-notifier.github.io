@@ -170,7 +170,7 @@ export abstract class ArtifactListener<T extends string | number> {
     });
     if (!row) return undefined;
     const n = Number.parseInt(row.value, 10);
-    return (isNaN(n) ? row.value : n) as T;
+    return (Number.isNaN(n) ? row.value : n) as T;
   }
 
   abstract sync(): Promise<void>;

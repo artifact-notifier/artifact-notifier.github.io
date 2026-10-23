@@ -83,5 +83,5 @@ export function pickCurrentVersion(versions: string[], includePrereleases: boole
   const stable = includePrereleases ? versions : versions.filter((v) => !isPrerelease(v));
   const pool = stable.length ? stable : versions;
   if (!pool.length) return null;
-  return pool.reduce((max, v) => (compareVersions(v, max) > 0 ? v : max));
+  return pool.reduce((max, v) => (compareVersions(v, max) > 0 ? v : max), pool[0]);
 }

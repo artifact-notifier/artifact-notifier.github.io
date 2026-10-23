@@ -16,8 +16,8 @@ type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
       </button>
       @if (open()) {
         <ul class="eco-options" role="listbox">
-          @for (eco of options; track eco) {
-            <li role="option" [attr.aria-selected]="eco === value()" [class.active]="eco === value()" (click)="pick(eco)">
+          @for (eco of choices; track eco) {
+            <li role="option" tabindex="0" [attr.aria-selected]="eco === value()" [class.active]="eco === value()" (click)="pick(eco)" (keydown.enter)="pick(eco)">
               <eco-icon [ecosystem]="eco" />
               <span>{{ label(eco) }}</span>
               @if (eco === value()) { <span class="check">✓</span> }
@@ -43,12 +43,12 @@ type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
 export class EcosystemSelectComponent {
   value = input.required<Eco>();
   valueChange = output<Eco>();
-  optionsInput = input<Eco[] | null>(null, { alias: 'options' });
+  options = input<Eco[] | null>(null);
 
   open = signal(false);
   // backend source via /api/artifacts/ecosystems (NODE_ENV) if provided, otherwise local fallback
-  get options(): Eco[] {
-    return this.optionsInput() ?? (['NPM', 'MAVEN', 'PYPI'] as Eco[]);
+  get choices(): Eco[] {
+    return this.options() ?? (['NPM', 'MAVEN', 'PYPI'] as Eco[]);
   }
 
   label(e: Eco) {

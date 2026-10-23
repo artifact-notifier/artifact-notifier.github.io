@@ -1,8 +1,7 @@
 import { NestFactory } from '@nestjs/core';
-import { LogLevel, ValidationPipe } from '@nestjs/common';
-import cookieParser from 'cookie-parser';
+import { LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { AppConfigModule } from './config/config.module';
+import { configureApp } from './app.setup';
 import { ConfigService } from '@nestjs/config';
 
 // Expand a LOG_LEVEL threshold (error < warn < log < debug < verbose) to the
@@ -29,18 +28,7 @@ async function bootstrap() {
   // Applied after ConfigService init so LOG_LEVEL from .env is honored
   // (process.env alone would miss .env values at this point).
   app.useLogger(resolveLogLevels(config.get<string>('LOG_LEVEL')));
-  app.setGlobalPrefix('api');
-  app.use(cookieParser());
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  // FRONTEND_URL can be a comma-separated list (multi-domain)
-  const frontendUrls = (config.get<string>('FRONTEND_URL') || 'http://localhost:4200')
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-  app.enableCors({
-    origin: frontendUrls.length >= 1 ? frontendUrls : ['http://localhost:4200'],
-    credentials: true,
-  });
+  configureApp(app);
   const port = config.get<number>('BACKEND_PORT') || 3000;
   await app.listen(port);
   console.log(`Backend listening on http://localhost:${port}/api`);

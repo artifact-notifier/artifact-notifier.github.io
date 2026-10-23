@@ -45,6 +45,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
             [placeholder]="i18n.t()('dashboard.search.placeholder')"
             autocomplete="off"
             role="combobox"
+            aria-controls="artifact-suggest"
             [attr.aria-expanded]="open() && results().length > 0"
             aria-autocomplete="list"
           />
@@ -52,7 +53,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
             <span class="spinner" [attr.aria-label]="i18n.t()('dashboard.search.loading')"></span>
           }
           @if (open() && (results().length > 0 || (!isSearching() && debouncedQuery().trim().length >= 2))) {
-            <ul class="suggest" role="listbox">
+            <ul id="artifact-suggest" class="suggest" role="listbox">
               @for (r of results(); track r.coordinates; let i = $index) {
                 <li
                   role="option"
@@ -86,12 +87,12 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
         <p class="muted">{{ i18n.t()('test.subtitle') }}</p>
         <div class="row" style="gap:.5rem;align-items:flex-end;flex-wrap:wrap">
           <div style="flex:1;min-width:180px">
-            <label class="muted" style="font-size:.75rem">{{ i18n.t()('test.coords') }}</label>
-            <input [ngModel]="testCoords()" (ngModelChange)="testCoords.set($event)" placeholder="my-test/pkg" style="width:100%" />
+            <label for="test-coords" class="muted" style="font-size:.75rem">{{ i18n.t()('test.coords') }}</label>
+            <input id="test-coords" [ngModel]="testCoords()" (ngModelChange)="testCoords.set($event)" placeholder="my-test/pkg" style="width:100%" />
           </div>
           <div style="width:130px">
-            <label class="muted" style="font-size:.75rem">{{ i18n.t()('test.version') }}</label>
-            <input [ngModel]="testVersion()" (ngModelChange)="testVersion.set($event)" placeholder="1.1.0" style="width:100%" />
+            <label for="test-version" class="muted" style="font-size:.75rem">{{ i18n.t()('test.version') }}</label>
+            <input id="test-version" [ngModel]="testVersion()" (ngModelChange)="testVersion.set($event)" placeholder="1.1.0" style="width:100%" />
           </div>
           <button class="btn" (click)="simulateTest()">{{ i18n.t()('test.simulate') }}</button>
         </div>
@@ -120,8 +121,8 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
       } @else {
         <div class="dense-list" role="table" aria-label="artifacts">
           <div class="dense-header" role="row">
-            <span class="sortable" style="width:32px" (click)="toggleTypeSort()" [attr.aria-sort]="sortBy()==='type_asc' ? 'ascending' : sortBy()==='type_desc' ? 'descending' : 'none'" title="{{ i18n.t()('dashboard.sort.type') }}">{{ sortIcon('type') }}</span>
-            <span class="sortable" style="flex:1" (click)="toggleNameSort()" [attr.aria-sort]="sortBy()==='name_asc' ? 'ascending' : sortBy()==='name_desc' ? 'descending' : 'none'">{{ i18n.t()('dashboard.col.artifact') }} <span class="sort-icon">{{ sortIcon('name') }}</span></span>
+            <span class="sortable" style="width:32px" role="button" tabindex="0" (click)="toggleTypeSort()" (keydown.enter)="toggleTypeSort()" (keydown.space)="toggleTypeSort(); $event.preventDefault()" [attr.aria-sort]="sortBy()==='type_asc' ? 'ascending' : sortBy()==='type_desc' ? 'descending' : 'none'" title="{{ i18n.t()('dashboard.sort.type') }}">{{ sortIcon('type') }}</span>
+            <span class="sortable" style="flex:1" role="button" tabindex="0" (click)="toggleNameSort()" (keydown.enter)="toggleNameSort()" (keydown.space)="toggleNameSort(); $event.preventDefault()" [attr.aria-sort]="sortBy()==='name_asc' ? 'ascending' : sortBy()==='name_desc' ? 'descending' : 'none'">{{ i18n.t()('dashboard.col.artifact') }} <span class="sort-icon">{{ sortIcon('name') }}</span></span>
             <span style="width:110px;text-align:right">{{ i18n.t()('dashboard.col.actions') }}</span>
           </div>
           @for (a of filteredSorted(); track a.id) {
@@ -164,8 +165,9 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
     </div>
 
     @if (pending(); as p) {
-      <div class="overlay" (click)="cancelUnfollow()" (keydown.escape)="cancelUnfollow()" tabindex="-1">
-        <div class="modal" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t()('dashboard.unfollow.confirm.title')" (click)="$event.stopPropagation()">
+      <!-- backdrop click closes, clicks inside the dialog don't -->
+      <div class="overlay" (click)="$event.target === $event.currentTarget && cancelUnfollow()" (keydown.escape)="cancelUnfollow()" tabindex="-1">
+        <div class="modal" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t()('dashboard.unfollow.confirm.title')">
           <h3>{{ i18n.t()('dashboard.unfollow.confirm.title') }}</h3>
           <p>{{ i18n.t()('dashboard.unfollow.confirm.message', {coords: p.coordinates}) }}</p>
           <div class="row" style="justify-content:flex-end">
@@ -424,13 +426,13 @@ export class DashboardComponent {
       if (this.open() && list.length) {
         e.preventDefault();
         const pick = list[this.activeIndex()] ?? list[0];
-        this.follow(pick.coordinates);
+        void this.follow(pick.coordinates);
       } else if (list.some(r => r.coordinates.toLowerCase() === q.toLowerCase())) {
         e.preventDefault();
-        this.follow(q);
+        void this.follow(q);
       } else if (q.length >= 2) {
         const exact = list.find(r => r.coordinates.toLowerCase() === q.toLowerCase());
-        if (exact) { e.preventDefault(); this.follow(exact.coordinates); }
+        if (exact) { e.preventDefault(); void this.follow(exact.coordinates); }
       }
     } else if (e.key === 'Escape') {
       this.open.set(false);

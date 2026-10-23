@@ -14,7 +14,9 @@ declare global {
 function normalizeBase(raw: string | null | undefined): string {
   const v = (raw ?? '').trim();
   if (!v) return '';
-  return v.replace(/\/+$/, '');
+  let end = v.length;
+  while (end > 0 && v[end - 1] === '/') end--;
+  return v.slice(0, end);
 }
 
 export function buildApiUrl(base: string, path: string): string {

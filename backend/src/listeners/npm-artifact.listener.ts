@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ArtifactListener } from './artifact-listener.base';
 import { Ecosystem } from '@prisma/client';
@@ -49,7 +49,7 @@ export class NpmArtifactListener
     }
     await this.start();
     // migrate legacy 'now' sequence if present
-    if ((this.sequence as any) === 'now' || (typeof this.sequence === 'string' && isNaN(Number(this.sequence)))) {
+    if ((this.sequence as any) === 'now' || (typeof this.sequence === 'string' && Number.isNaN(Number(this.sequence)))) {
       const seq = await this.fetchUpdateSeq();
       if (seq) {
         await this.updateSequence(seq);
@@ -83,7 +83,7 @@ export class NpmArtifactListener
     let seq = this.sequence as number;
     if (typeof seq === 'string') {
       const n = Number(seq);
-      seq = isNaN(n) ? 0 : n;
+      seq = Number.isNaN(n) ? 0 : n;
       if (seq === 0) {
         const info = await this.fetchUpdateSeq();
         if (info) seq = info;

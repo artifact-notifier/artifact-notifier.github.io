@@ -129,6 +129,27 @@ See `backend/prisma/schema.prisma`: `User`, `UserPreferences`, `FollowedArtifact
 - `ListenerSequence` allows resuming npm/Maven/PyPI tracking where it stopped
   (`_changes` sequence / timestamp / RSS etag).
 
+## Tests and code quality
+
+```bash
+npm run test          # backend (Jest) + frontend (Vitest) unit/integration tests
+npm run test:e2e      # Playwright: real frontend on desktop + phone viewports, API mocked
+npm run lint          # ESLint (typescript-eslint, angular-eslint templates/a11y)
+npm run format:check  # Prettier (npm run format to fix)
+```
+
+- **Backend** (`backend/`): unit tests next to the code (`src/**/*.spec.ts`);
+  integration and HTTP API tests in `test/` run against a throwaway SQLite
+  database migrated by `test/global-setup.ts` (the registry listeners are
+  replaced, no network). `npm run test:cov` writes `coverage/lcov.info`.
+- **Frontend** (`frontend/`): `ng test` (Vitest + jsdom) for services, guard and
+  components; `e2e/` for Playwright scenarios.
+- **CI** (`.github/workflows/ci.yml`, every push and PR): format, lint, tests
+  with coverage, builds, e2e, then a SonarCloud analysis fed with both lcov
+  reports. The analysis needs the `SONAR_TOKEN` repository secret and
+  *Automatic Analysis* turned off in SonarCloud (coverage is only accepted from
+  CI-based analysis).
+
 ## Production deployment
 
 - **Frontend**: pushed to `main` → built and published to GitHub Pages

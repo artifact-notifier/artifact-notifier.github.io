@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import Parser from 'rss-parser';
 import { ArtifactListener } from './artifact-listener.base';
@@ -11,6 +11,14 @@ const URL = 'https://pypi.org/rss/updates.xml';
 const XMLRPC_URL = 'https://pypi.org/pypi';
 const POLLING_TIME_IN_MS = 30 * 1000;
 const SERIAL_KEY = 'PypiArtifactListenerSerial';
+
+/** RSS item title is "<name> <version>". */
+export function parseFeedTitle(title: string | undefined): { name: string; version: string } | null {
+  const parts = (title ?? '').trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const version = parts.pop()!;
+  return { name: parts.join(' '), version };
+}
 
 @Injectable()
 export class PypiArtifactListener
@@ -61,12 +69,12 @@ export class PypiArtifactListener
       let newCount = 0;
       let skippedOld = 0;
       for (const entry of items) {
-        const m = entry.title?.match(/^(.+?)\s+([^\s]+)$/);
-        if (!m) {
+        const parsed = parseFeedTitle(entry.title);
+        if (!parsed) {
           this.logger.debug(`[PyPI] skip unparseable title: ${entry.title}`);
           continue;
         }
-        const [, name, version] = m;
+        const { name, version } = parsed;
         const published = entry.pubDate ? new Date(entry.pubDate) : new Date();
         if (published.getTime() > latest) {
           this.logger.debug(`[PyPI] checking ${name}@${version} published=${published.toISOString()}`);
@@ -129,8 +137,8 @@ export class PypiArtifactListener
 
   private async getStoredSerial(): Promise<number> {
     const row = await this.prisma.listenerSequence.findUnique({ where: { id: SERIAL_KEY } });
-    const n = row ? Number(row.value) : NaN;
-    if (!row || isNaN(n) || n <= 0) {
+    const n = row ? Number(row.value) : Number.NaN;
+    if (!row || Number.isNaN(n) || n <= 0) {
       // initialization: current serial, do not replay the whole history
       const current = await this.xmlRpcCall<number>('changelog_last_serial', []);
       await this.storeSerial(current);

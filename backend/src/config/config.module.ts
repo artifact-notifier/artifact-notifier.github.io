@@ -8,7 +8,7 @@ export const validationSchema = Joi.object({
   // Public API URL (used for OIDC redirect_uris).
   // In same-origin (frontend proxy) it equals the frontend URL; in cross-origin
   // it equals the API domain, e.g. https://api.example.com
-  BACKEND_PUBLIC_URL: Joi.string().default(''),
+  BACKEND_PUBLIC_URL: Joi.string().allow('').default(''),
   // Log verbosity threshold: error < warn < log (default) < debug < verbose
   LOG_LEVEL: Joi.string().valid('error', 'warn', 'log', 'debug', 'verbose').default('log'),
   DATABASE_URL: Joi.string().required(),
@@ -22,7 +22,7 @@ export const validationSchema = Joi.object({
   // Minimum digest interval (minutes) enforced when the channel includes email.
   // Daily (1440) by default; lower it in dev for faster testing (e.g. 1).
   MAIL_MIN_DIGEST_INTERVAL_MINUTES: Joi.number().integer().min(1).default(1440),
-  OIDC_PROVIDERS: Joi.string().default(''),
+  OIDC_PROVIDERS: Joi.string().allow('').default(''),
 });
 
 @Module({

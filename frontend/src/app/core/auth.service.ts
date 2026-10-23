@@ -151,32 +151,30 @@ export class AuthService {
     if (!res.ok) throw await res.json().catch(() => ({ message: 'Delete failed' }));
     this.clearSession();
     this.me.reload();
-    this.router.navigate(['/login']);
+    void this.router.navigate(['/login']);
   }
 
   async logout() {
-    try {
-      await fetch(this.api.apiUrl('/api/auth/logout'), {
-        credentials: 'include',
-        headers: this.authHeaders(),
-      });
-    } finally {
-      this.clearSession();
-    }
+    // Offline/API down: the local session is dropped anyway
+    await fetch(this.api.apiUrl('/api/auth/logout'), {
+      credentials: 'include',
+      headers: this.authHeaders(),
+    }).catch(() => undefined);
+    this.clearSession();
     this.me.reload();
-    this.router.navigate(['/login']);
+    void this.router.navigate(['/login']);
   }
 
   /** Called on 401 (expired/invalid session): clear local session once and go to login. */
   handleUnauthorized() {
     if (!this._user() && !this._token()) {
       // Already logged out — just ensure we land on login.
-      if (!this.router.url.includes('/login')) this.router.navigate(['/login']);
+      if (!this.router.url.includes('/login')) void this.router.navigate(['/login']);
       return;
     }
     this.clearSession();
     this.me.reload();
-    if (!this.router.url.includes('/login')) this.router.navigate(['/login']);
+    if (!this.router.url.includes('/login')) void this.router.navigate(['/login']);
   }
 
   private clearSession() {

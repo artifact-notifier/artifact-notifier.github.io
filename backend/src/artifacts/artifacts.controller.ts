@@ -12,7 +12,7 @@ class FollowDto {
   // npm names are <= 214 chars; Maven group:artifact and PyPI names stay well below
   @IsString()
   @MaxLength(256)
-  @Matches(/^[\w.@\/:-]+$/)
+  @Matches(/^[\w.@/:-]+$/)
   coordinates!: string;
 }
 

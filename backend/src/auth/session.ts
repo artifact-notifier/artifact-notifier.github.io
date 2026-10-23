@@ -4,14 +4,21 @@ import { CookieOptions } from 'express';
 
 export const SESSION_COOKIE = 'access_token';
 
+/** Linear (no regex backtracking on attacker-controlled-length input). */
+export function trimTrailingSlashes(s: string): string {
+  let end = s.length;
+  while (end > 0 && s[end - 1] === '/') end--;
+  return s.slice(0, end);
+}
+
 export function frontendUrl(config: ConfigService): string {
   const raw = config.get<string>('FRONTEND_URL')?.split(',')[0]?.trim() || 'http://localhost:4200';
-  return raw.replace(/\/+$/, '');
+  return trimTrailingSlashes(raw);
 }
 
 export function apiPublicUrl(config: ConfigService): string {
   const raw = config.get<string>('BACKEND_PUBLIC_URL')?.trim() || frontendUrl(config);
-  return raw.replace(/\/+$/, '');
+  return trimTrailingSlashes(raw);
 }
 
 function isCrossSite(config: ConfigService): boolean {

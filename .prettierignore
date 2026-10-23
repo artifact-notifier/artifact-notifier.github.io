@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.angular
+package-lock.json
+backend/prisma/migrations
+*.db
+playwright-report
+test-results
+.idea
+.claude
+frontend/src/favicon.svg

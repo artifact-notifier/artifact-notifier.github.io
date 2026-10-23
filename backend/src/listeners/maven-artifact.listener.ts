@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { ArtifactListener } from './artifact-listener.base';
 import { Ecosystem } from '@prisma/client';
@@ -114,7 +114,7 @@ export class MavenArtifactListener
     const RETRY_429_MS = 30000;
 
     let truncated = false;
-    do {
+    for (;;) {
       if (page > MAX_PAGE) {
         this.logger.error(`[Maven] pagination truncated at page=${MAX_PAGE} (API limit 10000 artifacts) — lastSync=${lastSync} not reached, history incomplete`);
         truncated = true;
@@ -176,7 +176,7 @@ export class MavenArtifactListener
         break;
       }
       page++;
-    } while (true);
+    }
 
     if (truncated) {
       this.logger.error(`[Maven] pagination done (TRUNCATED) pages=${pagesFetched} newArtifacts=${artifacts.length} maxTs=${maxTs} — full history not loaded, next sync will resume from updated sequence`);

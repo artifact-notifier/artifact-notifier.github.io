@@ -18,14 +18,14 @@ import { TelegramService } from '../core/telegram.service';
     @let p = prefs();
     @if (p) {
       <div class="card">
-        <label>{{ i18n.t()('preferences.email') }}</label>
-        <input type="email" [ngModel]="p.email" (ngModelChange)="update('email', $event)" placeholder="you@example.com" style="width:100%;margin-top:.25rem" />
+        <label for="pref-email">{{ i18n.t()('preferences.email') }}</label>
+        <input id="pref-email" type="email" [ngModel]="p.email" (ngModelChange)="update('email', $event)" placeholder="you@example.com" style="width:100%;margin-top:.25rem" />
         @if (isPlaceholderEmail(p.email)) {
           <p class="muted" style="color:#dc2626;font-size:.8rem">{{ i18n.t()('preferences.email.telegramOnly') }}</p>
         }
 
-        <label style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.channel') }}</label>
-        <select [ngModel]="p.notificationChannel" (ngModelChange)="onChannelChange($event)">
+        <label for="pref-channel" style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.channel') }}</label>
+        <select id="pref-channel" [ngModel]="p.notificationChannel" (ngModelChange)="onChannelChange($event)">
           <option value="email">{{ i18n.t()('preferences.channel.email') }}</option>
           <option value="telegram" [disabled]="!telegram.linked()">{{ i18n.t()('preferences.channel.telegram') }}</option>
           <option value="both" [disabled]="!telegram.linked()">{{ i18n.t()('preferences.channel.both') }}</option>
@@ -37,8 +37,8 @@ import { TelegramService } from '../core/telegram.service';
           <p class="muted" style="color:#dc2626;font-size:.8rem">{{ i18n.t()('preferences.email.realRequired') }}</p>
         }
 
-        <label style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.mode') }}</label>
-        <select [ngModel]="p.notificationMode" (ngModelChange)="update('notificationMode', $event)">
+        <label for="pref-mode" style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.mode') }}</label>
+        <select id="pref-mode" [ngModel]="p.notificationMode" (ngModelChange)="update('notificationMode', $event)">
           <option value="IMMEDIATE" [disabled]="!immediateAllowed()">{{ i18n.t()('preferences.mode.immediate') }}</option>
           <option value="DIGEST">{{ i18n.t()('preferences.mode.digest') }}</option>
         </select>
@@ -47,8 +47,8 @@ import { TelegramService } from '../core/telegram.service';
         }
 
         @if (p.notificationMode === 'DIGEST' || !immediateAllowed()) {
-          <label style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.interval') }}</label>
-          <select [ngModel]="p.digestIntervalMinutes" (ngModelChange)="update('digestIntervalMinutes', +$event)">
+          <label for="pref-interval" style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.interval') }}</label>
+          <select id="pref-interval" [ngModel]="p.digestIntervalMinutes" (ngModelChange)="update('digestIntervalMinutes', +$event)">
             @for (opt of intervalOptions(); track opt.value) {
               <option [value]="opt.value">{{ opt.label }}</option>
             }
@@ -99,8 +99,8 @@ import { TelegramService } from '../core/telegram.service';
           }
         </div>
 
-        <label style="display:block; margin-top:1rem;">{{ i18n.t()('theme.label') }}</label>
-        <select [ngModel]="theme.theme()" (ngModelChange)="theme.setTheme($event)">
+        <label for="pref-theme" style="display:block; margin-top:1rem;">{{ i18n.t()('theme.label') }}</label>
+        <select id="pref-theme" [ngModel]="theme.theme()" (ngModelChange)="theme.setTheme($event)">
           <option value="light">{{ i18n.t()('theme.light') }}</option>
           <option value="dark">{{ i18n.t()('theme.dark') }}</option>
           <option value="system">{{ i18n.t()('theme.system') }}</option>
@@ -251,7 +251,7 @@ export class PreferencesComponent {
       if (linked || err || merge || link) {
         setTimeout(() => {
           if (link) {
-            this.confirmLink(link);
+            void this.confirmLink(link);
           } else if (linked) {
             this.toast.show(this.i18n.t()('linked.success', { name: linked }), 'success');
             this.auth.linkedProviders.reload();

@@ -73,5 +73,5 @@ export class AppComponent {
     inject(DestroyRef).onDestroy(() => this.mq.removeEventListener('change', onChange));
   }
 
-  logout() { this.auth.logout(); }
+  logout() { void this.auth.logout(); }
 }

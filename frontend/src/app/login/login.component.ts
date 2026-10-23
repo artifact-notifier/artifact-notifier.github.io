@@ -144,7 +144,7 @@ export class LoginComponent {
   async onTelegramAuth(user: any) {
     try {
       await this.telegram.verify(user);
-      this.router.navigate(['/']);
+      await this.router.navigate(['/']);
     } catch (e: any) {
       this.telegramError = e?.error?.message || e?.message || 'Telegram login failed';
     }

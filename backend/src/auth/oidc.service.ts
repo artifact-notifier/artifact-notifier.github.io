@@ -4,14 +4,12 @@ import { Interval } from '@nestjs/schedule';
 import {
   Configuration,
   discovery,
-  randomPKCECodeVerifier,
-  randomState,
-  calculatePKCECodeChallenge,
   skipSubjectCheck,
   fetchUserInfo,
 } from 'openid-client';
 import * as crypto from 'crypto';
 import { ProviderConfig, OidcProfile } from './oidc.types';
+import { trimTrailingSlashes } from './session';
 
 export interface PendingMerge { toUserId: string; fromUserId: string; provider: string; expiresAt: number }
 export interface PendingLink { userId: string; profile: OidcProfile; expiresAt: number }
@@ -137,7 +135,7 @@ export class OidcService {
       this.config.get<string>('BACKEND_PUBLIC_URL')?.trim() ||
       this.config.get<string>('FRONTEND_URL')?.split(',')[0]?.trim() ||
       'http://localhost:4200';
-    return `${publicBase.replace(/\/+$/, '')}/api/auth/${provider}/callback`;
+    return `${trimTrailingSlashes(publicBase)}/api/auth/${provider}/callback`;
   }
 
   getProviderConfig(provider: string): ProviderConfig {
@@ -173,7 +171,7 @@ export class OidcService {
       signal: AbortSignal.timeout(10000),
     });
     const raw = await res.text().catch(() => '');
-    let json: any = null;
+    let json: any;
     try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
     if (!res.ok) {
       throw new UnauthorizedException(`Token exchange failed: ${res.status} ${json?.error_description || json?.error || raw || res.statusText}`);
@@ -324,7 +322,7 @@ export class OidcService {
   ): Promise<OidcProfile> {
     const cfg = this.getProviderConfig(provider);
     const oidcConfig = await this.getClient(provider);
-    let claims: Record<string, any> = {};
+    let claims: Record<string, any>;
 
     if (tokenset.access_token && cfg.userinfoEndpoint) {
       const userinfo = await fetchUserInfo(oidcConfig, tokenset.access_token, skipSubjectCheck);
