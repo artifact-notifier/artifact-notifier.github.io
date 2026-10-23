@@ -121,7 +121,30 @@ curl -b cookies.txt http://localhost:3000/api/artifacts/search?ecosystem=npm&q=r
 ## Database structure (Prisma)
 
 See `backend/prisma/schema.prisma`: `User`, `UserPreferences`, `FollowedArtifact`,
-`ArtifactVersionEvent`, `NotificationDelivery`, `ListenerSequence`.
+`ArtifactVersionEvent`, `NotificationDelivery`, `ListenerSequence`, `KnownVersion`.
+
+- `KnownVersion` holds every version already seen per artifact (shared by all
+  followers): any version not in it is notified, patches of older lines included.
 
 - `ListenerSequence` allows resuming npm/Maven/PyPI tracking where it stopped
   (`_changes` sequence / timestamp / RSS etag).
+
+## Production deployment
+
+- **Frontend**: pushed to `main` → built and published to GitHub Pages
+  (`.github/workflows/deploy-frontend.yml`).
+- **Backend**: pushed to `main` → arm64 Docker image built and pushed to GHCR
+  (`ghcr.io/artifact-notifier/artifact-notifier-backend`, tags `latest` and short
+  commit SHA, `.github/workflows/backend-image.yml`). GitHub has no access to the
+  server: the server pulls the image when a deploy is run there.
+
+On the server, `/opt/artifact-notifier` contains `compose.yml` and `deploy.sh`
+(copied from `deploy/`), the backend `.env`, `data/artifact-notifier.db` (SQLite,
+mounted at `/data`, owned by uid 1000) and `backups/`. nginx proxies
+`127.0.0.1:3000`. The container runs as a non-root user with a read-only
+filesystem and no capabilities; migrations are applied at startup.
+
+```bash
+# deploy a given image tag (backs up the database first); rollback = previous tag
+ssh artifact-notifier /opt/artifact-notifier/deploy.sh <short-sha>
+```

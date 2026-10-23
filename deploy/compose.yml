@@ -1,0 +1,27 @@
+name: artifact-notifier
+
+services:
+  backend:
+    image: ghcr.io/artifact-notifier/artifact-notifier-backend:${TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: file:/data/artifact-notifier.db
+    # Only nginx (on the host) talks to the backend
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
