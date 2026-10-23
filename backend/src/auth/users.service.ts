@@ -293,8 +293,14 @@ export class UsersService {
         const taken = await tx.linkedIdentity.findUnique({
           where: { provider_providerSubject: ident },
         });
-        if (taken) continue; // owned by a third account: leave it
-        await tx.linkedIdentity.create({ data: { userId: toUserId, ...ident } });
+        if (taken?.userId === fromUserId) {
+          // the absorbed account's own row: move it (it would be deleted with the account)
+          await tx.linkedIdentity.update({ where: { id: taken.id }, data: { userId: toUserId } });
+        } else if (taken) {
+          continue; // owned by a third account: leave it
+        } else {
+          await tx.linkedIdentity.create({ data: { userId: toUserId, ...ident } });
+        }
         existingLinks.add(`${ident.provider}:${ident.providerSubject}`);
       }
 
@@ -376,6 +382,10 @@ export class UsersService {
         patch.email = from.preferences!.email;
       }
       if (Object.keys(patch).length && to.preferences) {
+        if (patch.telegramChatId) {
+          // telegramChatId is unique: release it on the absorbed account first
+          await tx.userPreferences.update({ where: { userId: fromUserId }, data: { telegramChatId: null } });
+        }
         await tx.userPreferences.update({ where: { userId: toUserId }, data: patch });
       }
 

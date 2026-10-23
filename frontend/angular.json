@@ -52,7 +52,14 @@
             "tsConfig": "tsconfig.spec.json",
             "runner": "vitest",
             "buildTarget": "::development",
-            "coverageReporters": ["text-summary", "lcov"]
+            "coverageReporters": ["text-summary", "lcov"],
+            "coverageInclude": ["src/app/**/*.ts"],
+            "coverageExclude": [
+              "src/app/**/*.spec.ts",
+              "src/app/app.config.ts",
+              "src/app/app.routes.ts",
+              "src/app/core/i18n.service.ts"
+            ]
           }
         }
       }

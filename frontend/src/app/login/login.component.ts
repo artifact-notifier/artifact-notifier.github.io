@@ -4,6 +4,7 @@ import { AuthService } from '../core/auth.service';
 import { I18nService } from '../core/i18n.service';
 import { TelegramService } from '../core/telegram.service';
 import { Router } from '@angular/router';
+import { valueOrUndefined } from '../shared/resource-value';
 
 @Component({
   selector: 'app-login',
@@ -49,9 +50,9 @@ import { Router } from '@angular/router';
             @if (telegramLoading()) {
               <p class="muted" style="font-size:.8rem">…</p>
             }
-            @if (telegramError) {
+            @if (telegramError()) {
               <p style="color:#dc2626;font-size:.85rem">
-                {{ telegramError }}
+                {{ telegramError() }}
                 <button class="btn secondary small" (click)="retryWidget()">{{ i18n.t()('telegram.retry') }}</button>
               </p>
             }
@@ -110,9 +111,10 @@ export class LoginComponent {
   protected i18n = inject(I18nService);
   protected telegram = inject(TelegramService);
   private router = inject(Router);
-  protected readonly providers = this.auth.providers.value;
+  protected readonly providers = computed(() => valueOrUndefined(this.auth.providers));
   error = '';
-  telegramError = '';
+  // signal: set from the widget's async callbacks, which zoneless change detection doesn't see
+  readonly telegramError = signal('');
   telegramBox = viewChild<ElementRef>('telegramBox');
   private widgetInjectedFor = signal<string | null>(null);
   private widgetFailed = signal(false);
@@ -135,7 +137,7 @@ export class LoginComponent {
 
   private injectWidget(box: HTMLElement, username: string) {
     this.widgetFailed.set(false);
-    this.telegramError = '';
+    this.telegramError.set('');
     box.innerHTML = '';
     const s = document.createElement('script');
     s.async = true;
@@ -148,14 +150,14 @@ export class LoginComponent {
     s.onerror = () => {
       this.widgetFailed.set(true);
       this.widgetInjectedFor.set(null);
-      this.telegramError = 'Telegram widget failed to load (domain not allowed or network/adblock)';
+      this.telegramError.set('Telegram widget failed to load (domain not allowed or network/adblock)');
     };
     box.appendChild(s);
     // Fallback: if Telegram never calls back (no iframe after 5s), allow retry.
     setTimeout(() => {
       if (!box.querySelector('iframe') && this.widgetInjectedFor() !== username) {
         this.widgetFailed.set(true);
-        this.telegramError = 'Telegram widget failed to load (domain not allowed or network/adblock)';
+        this.telegramError.set('Telegram widget failed to load (domain not allowed or network/adblock)');
       }
     }, 5000);
   }
@@ -163,7 +165,7 @@ export class LoginComponent {
   protected retryWidget() {
     this.widgetInjectedFor.set(null);
     this.widgetFailed.set(false);
-    this.telegramError = '';
+    this.telegramError.set('');
     const username = this.telegram.botUsername();
     const box = this.telegramBox()?.nativeElement;
     if (username && box) this.injectWidget(box, username);
@@ -194,7 +196,7 @@ export class LoginComponent {
       await this.telegram.verify(user);
       await this.router.navigate(['/']);
     } catch (e: any) {
-      this.telegramError = e?.error?.message || e?.message || 'Telegram login failed';
+      this.telegramError.set(e?.error?.message || e?.message || 'Telegram login failed');
     }
   }
 }

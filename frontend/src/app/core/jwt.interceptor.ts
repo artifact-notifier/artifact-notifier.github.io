@@ -1,11 +1,14 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
-import { inject } from '@angular/core';
+import { Injector, inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { AuthService } from './auth.service';
 
 export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
   // httpOnly cookie (same-origin) + fallback Bearer (cross-origin, third-party cookies blocked).
   const token = localStorage.getItem('artifact-notifier.accessToken');
+  // Captured now: catchError runs outside the injection context (inject() there threw
+  // NG0203), and AuthService is resolved lazily since it depends on HttpClient itself.
+  const injector = inject(Injector);
   let r = req.clone({ withCredentials: true });
   if (token && !r.headers.has('Authorization')) {
     r = r.clone({ setHeaders: { Authorization: `Bearer ${token}` } });
@@ -16,7 +19,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
       // pages (e.g. dashboard) stuck with empty data. Skip public auth
       // endpoints so the login page itself never redirect-loops.
       if (err instanceof HttpErrorResponse && err.status === 401 && !req.url.includes('/api/auth/')) {
-        inject(AuthService).handleUnauthorized();
+        injector.get(AuthService).handleUnauthorized();
       }
       return throwError(() => err);
     }),

@@ -73,4 +73,13 @@ test.describe('logged in', () => {
       .click();
     await expect(page).toHaveURL(/#\/login$/);
   });
+
+  test('an expired session goes back to login', async ({ page }) => {
+    // regression: the interceptor threw NG0203 on a 401 instead of redirecting
+    await page.route('**/api/artifacts', (route) =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: '{"message":"Unauthorized"}' }),
+    );
+    await page.goto('/');
+    await expect(page).toHaveURL(/#\/login$/);
+  });
 });

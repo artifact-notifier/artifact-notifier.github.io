@@ -1,5 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { PreferencesService } from '../preferences/preferences.service';
+import { valueOrUndefined } from '../shared/resource-value';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -26,7 +27,7 @@ export class ThemeService {
 
     // sync from DB - single source
     effect(() => {
-      const p = this.prefs.resource.value();
+      const p = valueOrUndefined(this.prefs.resource);
       if (p?.theme && ['light', 'dark', 'system'].includes(p.theme)) {
         const th = p.theme as Theme;
         if (th !== this._theme()) {

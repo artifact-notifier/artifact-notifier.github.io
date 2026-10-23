@@ -51,3 +51,40 @@ describe('TelegramService', () => {
     });
   });
 });
+
+describe('TelegramService.sendMessage', () => {
+  const service = new TelegramService(new ConfigService({ TELEGRAM_BOT_TOKEN: BOT_TOKEN, TELEGRAM_ENABLED: 'true' }));
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('posts an HTML message to the Bot API', async () => {
+    const fetch = jest.spyOn(global, 'fetch').mockResolvedValue(new Response('{"ok":true}'));
+    await service.sendMessage('42', '<b>hi</b>');
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`);
+    expect(JSON.parse(String(init!.body))).toMatchObject({ chat_id: '42', text: '<b>hi</b>', parse_mode: 'HTML' });
+  });
+
+  it('throws on API errors', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(new Response('chat not found', { status: 400 }));
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => undefined);
+    await expect(service.sendMessage('42', 'x')).rejects.toThrow('chat not found');
+  });
+
+  it('requires a bot token', async () => {
+    const unconfigured = new TelegramService(new ConfigService({}));
+    const saved = process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    try {
+      expect(unconfigured.isEnabled()).toBe(false);
+      await expect(unconfigured.sendMessage('42', 'x')).rejects.toThrow('not configured');
+    } finally {
+      process.env.TELEGRAM_BOT_TOKEN = saved;
+    }
+  });
+
+  it('is enabled only when flagged and configured', () => {
+    expect(service.isEnabled()).toBe(true);
+    expect(service.getBotUsername()).toBe('notifier_test_bot');
+  });
+});

@@ -31,6 +31,8 @@ export const validationSchema = Joi.object({
       isGlobal: true,
       validationSchema,
       envFilePath: ['.env', '.env.local'],
+      // tests set their whole environment (test/env.ts): never pick up a developer's secrets
+      ignoreEnvFile: process.env.NODE_ENV === 'test',
     }),
   ],
   exports: [ConfigModule],

@@ -9,6 +9,7 @@ import { I18nService } from '../core/i18n.service';
 import { EcoIconComponent } from '../shared/eco-icon.component';
 import { EcosystemSelectComponent } from '../shared/ecosystem-select.component';
 import { ApiConfigService } from '../core/api-config.service';
+import { valueOrUndefined } from '../shared/resource-value';
 
 type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
 type FilterEco = 'ALL' | Eco;
@@ -622,7 +623,7 @@ export class DashboardComponent {
     this.auth.user() ? { url: this.api.apiUrl('/api/artifacts/ecosystems') } : undefined,
   );
   protected readonly availableEcos = computed(
-    () => (this.ecosystemsRes.value() as Eco[] | undefined) ?? (['NPM', 'MAVEN', 'PYPI'] as Eco[]),
+    () => (valueOrUndefined(this.ecosystemsRes) as Eco[] | undefined) ?? (['NPM', 'MAVEN', 'PYPI'] as Eco[]),
   );
   protected readonly isTestEnabled = computed(() => this.availableEcos().includes('TEST'));
   protected readonly query = signal('');
@@ -644,7 +645,7 @@ export class DashboardComponent {
   protected readonly syncStatusRes = httpResource<SyncStatus>(() =>
     this.auth.user() ? { url: this.api.apiUrl('/api/artifacts/sync-status') } : undefined,
   );
-  protected readonly syncStatus = computed(() => this.syncStatusRes.value() ?? null);
+  protected readonly syncStatus = computed(() => valueOrUndefined(this.syncStatusRes) ?? null);
 
   protected readonly searchRes = httpResource<SearchResult[]>(() => {
     const q = this.debouncedQuery().trim();
@@ -656,8 +657,8 @@ export class DashboardComponent {
     () => this.query().trim() !== this.debouncedQuery().trim() || this.searchRes.isLoading(),
   );
 
-  protected readonly artifacts = computed<FollowedArtifact[]>(() => this.artifactsRes.value() ?? []);
-  protected readonly results = computed<SearchResult[]>(() => this.searchRes.value() ?? []);
+  protected readonly artifacts = computed<FollowedArtifact[]>(() => valueOrUndefined(this.artifactsRes) ?? []);
+  protected readonly results = computed<SearchResult[]>(() => valueOrUndefined(this.searchRes) ?? []);
 
   protected readonly filteredSorted = computed(() => {
     let list = this.artifacts();

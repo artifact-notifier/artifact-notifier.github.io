@@ -1,41 +1,23 @@
 import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Test } from '@nestjs/testing';
 import { PrismaClient } from '@prisma/client';
 import * as crypto from 'crypto';
 import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/app.setup';
-import { MavenArtifactListener } from '../src/listeners/maven-artifact.listener';
-import { NpmArtifactListener } from '../src/listeners/npm-artifact.listener';
-import { PypiArtifactListener } from '../src/listeners/pypi-artifact.listener';
+import { bearer, createTestApp } from './app';
 import { createUser, resetDb } from './db';
-
-/** Whole application over HTTP, without the registry listeners (no network). */
-const noListener = { refreshFollowed: async () => undefined };
 
 const prisma = new PrismaClient();
 let app: INestApplication;
 let token: string;
 
 beforeAll(async () => {
-  const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(NpmArtifactListener)
-    .useValue(noListener)
-    .overrideProvider(MavenArtifactListener)
-    .useValue(noListener)
-    .overrideProvider(PypiArtifactListener)
-    .useValue(noListener)
-    .compile();
-  app = moduleRef.createNestApplication({ logger: false });
-  configureApp(app);
-  await app.init();
+  app = await createTestApp();
 });
 
 beforeEach(async () => {
   await resetDb(prisma);
   const user = await createUser(prisma, 'u1', { notificationChannel: 'email', notificationMode: 'DIGEST' });
-  token = app.get(JwtService).sign({ sub: user.id, email: user.email, provider: 'test' }, { secret: 'test-secret' });
+  token = bearer(app, user).Authorization.slice('Bearer '.length);
 });
 
 afterAll(async () => {

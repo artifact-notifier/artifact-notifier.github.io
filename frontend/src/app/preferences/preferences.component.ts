@@ -9,6 +9,7 @@ import { I18nService } from '../core/i18n.service';
 import { ThemeService } from '../core/theme.service';
 import { ToastService } from '../core/toast.service';
 import { TelegramService } from '../core/telegram.service';
+import { valueOrUndefined } from '../shared/resource-value';
 
 @Component({
   selector: 'app-preferences',
@@ -98,8 +99,8 @@ import { TelegramService } from '../core/telegram.service';
             } @else {
               <p class="muted" style="font-size:.85rem">{{ i18n.t()('telegram.notConfigured') }}</p>
             }
-            @if (telegramError) {
-              <p style="color:#dc2626;font-size:.85rem">{{ telegramError }}</p>
+            @if (telegramError()) {
+              <p style="color:#dc2626;font-size:.85rem">{{ telegramError() }}</p>
             }
           }
         </div>
@@ -107,7 +108,7 @@ import { TelegramService } from '../core/telegram.service';
         <div class="card" style="margin-top:1rem;background:var(--hover)">
           <h3 style="margin:0 0 .5rem">🔗 {{ i18n.t()('linked.title') }}</h3>
           <p class="muted" style="font-size:.85rem">{{ i18n.t()('linked.subtitle') }}</p>
-          @if (auth.linkedProviders.value(); as links) {
+          @if (links(); as links) {
             <ul style="list-style:none;margin:.5rem 0;padding:0;display:flex;flex-direction:column;gap:.4rem">
               @for (l of links; track l.key) {
                 <li style="display:flex;align-items:center;gap:.5rem">
@@ -143,7 +144,7 @@ import { TelegramService } from '../core/telegram.service';
         @if (mergeToken()) {
           <div class="card" style="margin-top:1rem;border:1.5px solid #2563eb">
             <h3 style="margin:0 0 .5rem">🔀 {{ i18n.t()('merge.title') }}</h3>
-            @if (mergePreview.value(); as m) {
+            @if (merge(); as m) {
               <p class="muted" style="font-size:.85rem">
                 {{ i18n.t()('merge.detail', { from: m.from.email, to: m.to.email }) }}
               </p>
@@ -194,7 +195,8 @@ export class PreferencesComponent {
   private readonly prefsRes = this.preferencesService.resource;
   protected readonly prefs = signal<Preferences | null>(null);
   protected readonly saved = signal(false);
-  protected telegramError = '';
+  // signal: set from the widget's async callback, which zoneless change detection doesn't see
+  protected readonly telegramError = signal('');
   telegramLinkBox = viewChild<ElementRef>('telegramLinkBox');
   private widgetInjectedFor = signal<string | null>(null);
   protected readonly mergeToken = signal<string | null>(null);
@@ -214,8 +216,11 @@ export class PreferencesComponent {
     return t && this.auth.user() ? { url: this.api.apiUrl(`/api/auth/merge/preview?token=${t}`) } : undefined;
   });
 
+  protected readonly links = computed(() => valueOrUndefined(this.auth.linkedProviders));
+  protected readonly merge = computed(() => valueOrUndefined(this.mergePreview));
+
   protected telegramLabel(): string {
-    const s = this.telegram.status.value();
+    const s = valueOrUndefined(this.telegram.status);
     const id = s?.telegramId || this.prefs()?.telegramChatId || '';
     const username = s?.telegramUsername;
     return username ? `@${username} (${id})` : `${id}`;
@@ -235,12 +240,12 @@ export class PreferencesComponent {
 
   /** Immediate is Telegram-only (backend enforces it too). */
   protected readonly immediateAllowed = computed(() => {
-    const allowed = this.preferencesService.constraints.value()?.immediateChannels ?? ['telegram'];
+    const allowed = valueOrUndefined(this.preferencesService.constraints)?.immediateChannels ?? ['telegram'];
     return allowed.includes(this.prefs()?.notificationChannel ?? 'email');
   });
 
   protected readonly intervalOptions = computed(() => {
-    const min = this.preferencesService.constraints.value()?.mailMinDigestMinutes ?? 1440;
+    const min = valueOrUndefined(this.preferencesService.constraints)?.mailMinDigestMinutes ?? 1440;
     const all = [
       { value: 1440, label: this.i18n.t()('preferences.interval.daily') },
       { value: 10080, label: this.i18n.t()('preferences.interval.weekly') },
@@ -255,10 +260,10 @@ export class PreferencesComponent {
       if (!p) return p;
       const next = { ...p, notificationChannel: channel };
       // Mail can't be immediate: fall back to digest (backend rejects otherwise).
-      const allowed = this.preferencesService.constraints.value()?.immediateChannels ?? ['telegram'];
+      const allowed = valueOrUndefined(this.preferencesService.constraints)?.immediateChannels ?? ['telegram'];
       if (!allowed.includes(channel)) next.notificationMode = 'DIGEST';
       // Clamp interval to the mail minimum.
-      const min = this.preferencesService.constraints.value()?.mailMinDigestMinutes ?? 1440;
+      const min = valueOrUndefined(this.preferencesService.constraints)?.mailMinDigestMinutes ?? 1440;
       if ((channel === 'email' || channel === 'both') && next.digestIntervalMinutes < min) {
         next.digestIntervalMinutes = min;
       }
@@ -268,7 +273,7 @@ export class PreferencesComponent {
 
   constructor() {
     effect(() => {
-      const v = this.prefsRes.value();
+      const v = valueOrUndefined(this.prefsRes);
       if (v) this.prefs.set(v);
     });
     // Feedback from the OAuth link round-trip: /#/preferences?link=<token> (to confirm
@@ -328,7 +333,7 @@ export class PreferencesComponent {
       await this.telegram.link(user);
       this.toast.show(this.i18n.t()('telegram.linked'), 'success');
     } catch (e: any) {
-      this.telegramError = e?.error?.message || e?.message || 'Link failed';
+      this.telegramError.set(e?.error?.message || e?.message || 'Link failed');
     }
   }
 
@@ -423,9 +428,9 @@ export class PreferencesComponent {
         this.prefs.update((v) => (v ? { ...v, notificationChannel: 'email' as any } : v));
       }
       // mail is digest-only: align locally so the backend validation passes.
-      const allowed = this.preferencesService.constraints.value()?.immediateChannels ?? ['telegram'];
+      const allowed = valueOrUndefined(this.preferencesService.constraints)?.immediateChannels ?? ['telegram'];
       if (!allowed.includes(dto.notificationChannel)) dto.notificationMode = 'DIGEST';
-      const min = this.preferencesService.constraints.value()?.mailMinDigestMinutes ?? 1440;
+      const min = valueOrUndefined(this.preferencesService.constraints)?.mailMinDigestMinutes ?? 1440;
       if (
         (dto.notificationChannel === 'email' || dto.notificationChannel === 'both') &&
         dto.digestIntervalMinutes < min

@@ -1,5 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { PreferencesService } from '../preferences/preferences.service';
+import { valueOrUndefined } from '../shared/resource-value';
 
 type Lang = 'fr' | 'en' | 'es' | 'de' | 'zh';
 const SUPPORTED: Lang[] = ['fr', 'en', 'es', 'de', 'zh'];
@@ -662,7 +663,7 @@ export class I18nService {
 
     // sync depuis BDD quand dispo - source unique PreferencesService
     effect(() => {
-      const p = this.prefs.resource.value();
+      const p = valueOrUndefined(this.prefs.resource);
       if (p?.locale && SUPPORTED.includes(p.locale as Lang)) {
         if (p.locale !== this._lang()) {
           this._lang.set(p.locale as Lang);

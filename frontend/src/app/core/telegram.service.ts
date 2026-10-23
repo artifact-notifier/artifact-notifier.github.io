@@ -3,6 +3,7 @@ import { httpResource } from '@angular/common/http';
 import { AuthService } from './auth.service';
 import { PreferencesService } from '../preferences/preferences.service';
 import { ApiConfigService } from './api-config.service';
+import { valueOrUndefined } from '../shared/resource-value';
 
 export interface TelegramConfig {
   enabled: boolean;
@@ -28,10 +29,12 @@ export class TelegramService {
     this.auth.user() ? { url: this.api.apiUrl('/api/auth/telegram/status') } : undefined,
   );
 
-  readonly botUsername = computed(() => this.config.value()?.botUsername || null);
-  readonly enabled = computed(() => !!this.config.value()?.enabled);
+  readonly botUsername = computed(() => valueOrUndefined(this.config)?.botUsername || null);
+  readonly enabled = computed(() => !!valueOrUndefined(this.config)?.enabled);
   // linked via User.telegramId OR via UserPreferences.telegramChatId (manual localhost fallback)
-  readonly linked = computed(() => !!this.status.value()?.linked || !!this.prefs.resource.value()?.telegramChatId);
+  readonly linked = computed(
+    () => !!valueOrUndefined(this.status)?.linked || !!valueOrUndefined(this.prefs.resource)?.telegramChatId,
+  );
 
   async verify(data: any): Promise<void> {
     const res = await fetch(this.api.apiUrl('/api/auth/telegram/verify'), {

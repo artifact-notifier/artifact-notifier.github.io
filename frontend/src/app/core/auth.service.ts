@@ -49,7 +49,8 @@ export class AuthService {
         // Clean the token from the URL, preserving the hash route.
         const hash = window.location.hash;
         if (hash.includes('access_token=')) {
-          const cleanHash = hash.replace(/([?&])access_token=[^&]*&?/, '$1').replace(/[?&]$/, '');
+          // also after '#' (legacy #access_token=...), else the token stayed in the URL/history
+          const cleanHash = hash.replace(/([#?&])access_token=[^&]*&?/, '$1').replace(/[#?&]$/, '');
           window.history.replaceState(null, '', window.location.pathname + window.location.search + cleanHash);
         } else {
           const url = new URL(window.location.href);
