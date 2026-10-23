@@ -44,7 +44,15 @@ export class MailService {
       </ul>
       <p>{{dashboard}}</p>
     `);
-    return template({ ...pkg, title: t(locale,'emailImmediateTitle'), intro: t(locale,'emailImmediateIntro'), ecoLabel: t(locale,'emailEcosystem'), artLabel: t(locale,'emailArtifact'), verLabel: t(locale,'emailVersion'), dashboard: t(locale,'emailDashboard') });
+    return template({
+      ...pkg,
+      title: t(locale, 'emailImmediateTitle'),
+      intro: t(locale, 'emailImmediateIntro'),
+      ecoLabel: t(locale, 'emailEcosystem'),
+      artLabel: t(locale, 'emailArtifact'),
+      verLabel: t(locale, 'emailVersion'),
+      dashboard: t(locale, 'emailDashboard'),
+    });
   }
 
   renderDigest(items: { coordinates: string; ecosystem: string; version: string }[], locale?: string) {
@@ -57,6 +65,6 @@ export class MailService {
         {{/each}}
       </ul>
     `);
-    return template({ items, title: t(locale,'emailDigestTitle'), intro: t(locale,'emailDigestIntro') });
+    return template({ items, title: t(locale, 'emailDigestTitle'), intro: t(locale, 'emailDigestIntro') });
   }
 }

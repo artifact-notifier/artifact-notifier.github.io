@@ -45,10 +45,7 @@ export async function fetchPypiVersions(name: string): Promise<PublishedVersion[
   });
 }
 
-export async function fetchAllVersions(
-  ecosystem: Ecosystem,
-  coordinates: string,
-): Promise<PublishedVersion[] | null> {
+export async function fetchAllVersions(ecosystem: Ecosystem, coordinates: string): Promise<PublishedVersion[] | null> {
   switch (ecosystem) {
     case Ecosystem.MAVEN:
       return fetchMavenVersions(coordinates);

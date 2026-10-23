@@ -21,21 +21,14 @@ export function parseFeedTitle(title: string | undefined): { name: string; versi
 }
 
 @Injectable()
-export class PypiArtifactListener
-  extends ArtifactListener<number>
-  implements OnModuleInit, OnModuleDestroy
-{
+export class PypiArtifactListener extends ArtifactListener<number> implements OnModuleInit, OnModuleDestroy {
   readonly ecosystem = Ecosystem.PYPI;
   defaultSequence = 0;
   private etag?: string;
   private running = false;
   private parser = new Parser();
 
-  constructor(
-    artifacts: ArtifactsService,
-    notifications: NotificationsService,
-    prisma: PrismaService,
-  ) {
+  constructor(artifacts: ArtifactsService, notifications: NotificationsService, prisma: PrismaService) {
     super(artifacts, notifications, prisma);
   }
 
@@ -55,9 +48,7 @@ export class PypiArtifactListener
     this.running = true;
     try {
       const latest = this.sequence as number;
-      const headers: Record<string, string> = this.etag
-        ? { 'if-none-match': this.etag }
-        : {};
+      const headers: Record<string, string> = this.etag ? { 'if-none-match': this.etag } : {};
       const res = await fetch(URL, { signal: AbortSignal.timeout(10000), headers });
       this.etag = res.headers.get('etag') || this.etag;
       if (res.status !== 200) return;
@@ -89,14 +80,18 @@ export class PypiArtifactListener
       // if the whole feed is newer than lastSync, we missed some history -> XML-RPC fallback.
       const truncated = items.length > 0 && skippedOld === 0 && newCount === items.length;
       if (truncated) {
-        this.logger.warn(`[PyPI] feed truncated: all ${items.length} items newer than lastSync=${latest}, trying XML-RPC catch-up`);
+        this.logger.warn(
+          `[PyPI] feed truncated: all ${items.length} items newer than lastSync=${latest}, trying XML-RPC catch-up`,
+        );
         try {
           await this.catchUpViaXmlRpc(latest);
         } catch (e) {
           this.logger.error(`[PyPI] XML-RPC catch-up failed: ${(e as Error).message} — advancing anyway`);
         }
       }
-      this.logger.log(`[PyPI] poll done new=${newCount} skippedOld=${skippedOld} maxTs=${maxTs} (${new Date(maxTs).toISOString()})${truncated ? ' (TRUNCATED, xmlrpc attempted)' : ''}`);
+      this.logger.log(
+        `[PyPI] poll done new=${newCount} skippedOld=${skippedOld} maxTs=${maxTs} (${new Date(maxTs).toISOString()})${truncated ? ' (TRUNCATED, xmlrpc attempted)' : ''}`,
+      );
       await this.updateSequence(maxTs);
       await this.updateTimestampAlias(Date.now());
       await this.refreshSerial();
@@ -115,14 +110,11 @@ export class PypiArtifactListener
   private async catchUpViaXmlRpc(lastSync: number): Promise<void> {
     const sinceSerial = await this.getStoredSerial();
     this.logger.log(`[PyPI] XML-RPC catch-up since serial=${sinceSerial}`);
-    const events = await this.xmlRpcCall<[string, string, number, string, number][]>(
-      'changelog_since_serial',
-      [sinceSerial],
-    );
+    const events = await this.xmlRpcCall<[string, string, number, string, number][]>('changelog_since_serial', [
+      sinceSerial,
+    ]);
     // filter on release additions newer than lastSync
-    const fresh = events.filter(
-      ([, , ts, action]) => action !== 'remove' && ts * 1000 > lastSync,
-    );
+    const fresh = events.filter(([, , ts, action]) => action !== 'remove' && ts * 1000 > lastSync);
     this.logger.log(`[PyPI] XML-RPC got ${events.length} events, ${fresh.length} fresh since lastSync`);
     // process from oldest to newest
     fresh.sort((a, b) => a[4] - b[4]);

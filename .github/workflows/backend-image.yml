@@ -7,8 +7,8 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/**"
-      - ".github/workflows/backend-image.yml"
+      - 'backend/**'
+      - '.github/workflows/backend-image.yml'
   workflow_dispatch:
 
 permissions: {}

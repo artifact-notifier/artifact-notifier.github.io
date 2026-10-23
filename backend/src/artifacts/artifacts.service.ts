@@ -9,7 +9,10 @@ const MAX_FOLLOWS_PER_USER = 200;
 
 @Injectable()
 export class ArtifactsService {
-  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   isTestEnabled(): boolean {
     const nodeEnv = this.config.get<string>('NODE_ENV') || process.env.NODE_ENV;

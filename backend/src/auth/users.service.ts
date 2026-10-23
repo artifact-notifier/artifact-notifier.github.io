@@ -137,10 +137,7 @@ export class UsersService {
     });
   }
 
-  async linkTelegram(
-    userId: string,
-    data: { telegramId: string; telegramUsername?: string },
-  ) {
+  async linkTelegram(userId: string, data: { telegramId: string; telegramUsername?: string }) {
     const taken = await this.prisma.userPreferences.findFirst({ where: { telegramChatId: data.telegramId } });
     if (taken && taken.userId !== userId) throw new NotFoundException('Telegram already linked to another account');
 
@@ -283,8 +280,9 @@ export class UsersService {
     await this.prisma.$transaction(async (tx) => {
       // 1. Identities (linked rows + legacy primary identity).
       const existingLinks = new Set(
-        (await tx.linkedIdentity.findMany({ where: { userId: toUserId } }))
-          .map((i) => `${i.provider}:${i.providerSubject}`),
+        (await tx.linkedIdentity.findMany({ where: { userId: toUserId } })).map(
+          (i) => `${i.provider}:${i.providerSubject}`,
+        ),
       );
       const toMove = [
         ...from.identities.map((i) => ({ provider: i.provider, providerSubject: i.providerSubject })),
@@ -312,36 +310,53 @@ export class UsersService {
         if (!fa) {
           // Whole follow moves over (events included); deliveries get reassigned.
           await tx.followedArtifact.update({ where: { id: fb.id }, data: { userId: toUserId } });
-          await tx.notificationDelivery.updateMany({ where: { userId: fromUserId, event: { followedArtifactId: fb.id } }, data: { userId: toUserId } });
+          await tx.notificationDelivery.updateMany({
+            where: { userId: fromUserId, event: { followedArtifactId: fb.id } },
+            data: { userId: toUserId },
+          });
           toByKey.set(`${fb.ecosystem}:${fb.coordinates}`, { ...fb, userId: toUserId });
           continue;
         }
         // Duplicate follow: merge events version by version.
-        const faEvents = await tx.artifactVersionEvent.findMany({ where: { followedArtifactId: fa.id }, include: { deliveries: true } });
+        const faEvents = await tx.artifactVersionEvent.findMany({
+          where: { followedArtifactId: fa.id },
+          include: { deliveries: true },
+        });
         const faByVersion = new Map(faEvents.map((e) => [e.version, e]));
         for (const eb of fb.events) {
           let targetId = faByVersion.get(eb.version)?.id;
           if (!targetId) {
-            const moved = await tx.artifactVersionEvent.update({ where: { id: eb.id }, data: { followedArtifactId: fa.id } });
+            const moved = await tx.artifactVersionEvent.update({
+              where: { id: eb.id },
+              data: { followedArtifactId: fa.id },
+            });
             targetId = moved.id;
           }
           for (const db of eb.deliveries) {
-            const clash = faByVersion.get(eb.version)?.deliveries.find(
-              (d) => d.userId === toUserId && d.channel === db.channel,
-            ) ?? (await tx.notificationDelivery.findUnique({
-              where: { eventId_userId_channel: { eventId: targetId, userId: toUserId, channel: db.channel } },
-            }));
+            const clash =
+              faByVersion.get(eb.version)?.deliveries.find((d) => d.userId === toUserId && d.channel === db.channel) ??
+              (await tx.notificationDelivery.findUnique({
+                where: { eventId_userId_channel: { eventId: targetId, userId: toUserId, channel: db.channel } },
+              }));
             if (clash) {
               await tx.notificationDelivery.delete({ where: { id: db.id } });
             } else {
-              await tx.notificationDelivery.update({ where: { id: db.id }, data: { eventId: targetId, userId: toUserId } });
+              await tx.notificationDelivery.update({
+                where: { id: db.id },
+                data: { eventId: targetId, userId: toUserId },
+              });
             }
           }
           // Stale duplicate event row left behind (same version already existed).
           if (faByVersion.has(eb.version)) {
             await tx.artifactVersionEvent.delete({ where: { id: eb.id } }).catch(() => {});
           } else {
-            faByVersion.set(eb.version, { ...(await tx.artifactVersionEvent.findUnique({ where: { id: targetId }, include: { deliveries: true } }))! });
+            faByVersion.set(eb.version, {
+              ...(await tx.artifactVersionEvent.findUnique({
+                where: { id: targetId },
+                include: { deliveries: true },
+              }))!,
+            });
           }
         }
         await tx.followedArtifact.delete({ where: { id: fb.id } }).catch(() => {});
@@ -353,7 +368,11 @@ export class UsersService {
         patch.telegramChatId = from.preferences.telegramChatId;
         patch.telegramUsername = from.preferences.telegramUsername;
       }
-      if (to.preferences && /\.local$/i.test(to.preferences.email) && !/\.local$/i.test(from.preferences?.email ?? '')) {
+      if (
+        to.preferences &&
+        /\.local$/i.test(to.preferences.email) &&
+        !/\.local$/i.test(from.preferences?.email ?? '')
+      ) {
         patch.email = from.preferences!.email;
       }
       if (Object.keys(patch).length && to.preferences) {
@@ -408,9 +427,7 @@ export class UsersService {
 
     // Placeholder identities (Telegram login: 123@telegram.local) can't receive mail.
     if (includesMail && /\.local$/i.test(notifyEmail)) {
-      throw new BadRequestException(
-        'A real email address is required for mail notifications (set it in preferences)',
-      );
+      throw new BadRequestException('A real email address is required for mail notifications (set it in preferences)');
     }
 
     // Immediate is Telegram-only; mail is digest-only.
@@ -427,8 +444,7 @@ export class UsersService {
     const data: any = {};
     if (dto.email !== undefined) data.email = dto.email;
     if (dto.notificationMode) data.notificationMode = dto.notificationMode;
-    if (dto.digestIntervalMinutes !== undefined)
-      data.digestIntervalMinutes = dto.digestIntervalMinutes;
+    if (dto.digestIntervalMinutes !== undefined) data.digestIntervalMinutes = dto.digestIntervalMinutes;
     if (dto.locale && ['fr', 'en', 'es', 'de', 'zh'].includes(dto.locale)) data.locale = dto.locale;
     if (dto.theme && ['light', 'dark', 'system'].includes(dto.theme)) data.theme = dto.theme;
     if (dto.notificationChannel && ['email', 'telegram', 'both'].includes(dto.notificationChannel))

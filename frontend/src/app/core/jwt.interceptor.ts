@@ -15,11 +15,7 @@ export const jwtInterceptor: HttpInterceptorFn = (req, next) => {
       // Expired/invalid session: route back to login instead of leaving
       // pages (e.g. dashboard) stuck with empty data. Skip public auth
       // endpoints so the login page itself never redirect-loops.
-      if (
-        err instanceof HttpErrorResponse &&
-        err.status === 401 &&
-        !req.url.includes('/api/auth/')
-      ) {
+      if (err instanceof HttpErrorResponse && err.status === 401 && !req.url.includes('/api/auth/')) {
         inject(AuthService).handleUnauthorized();
       }
       return throwError(() => err);

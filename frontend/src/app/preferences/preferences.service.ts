@@ -26,7 +26,9 @@ export class PreferencesService {
   private readonly auth = inject(AuthService);
 
   // single source to avoid 3x GET /api/preferences
-  readonly resource = httpResource<Preferences>(() => this.auth.user() ? { url: this.api.apiUrl('/api/preferences') } : undefined);
+  readonly resource = httpResource<Preferences>(() =>
+    this.auth.user() ? { url: this.api.apiUrl('/api/preferences') } : undefined,
+  );
 
   readonly constraints = httpResource<NotificationConstraints>(() =>
     this.auth.user() ? { url: this.api.apiUrl('/api/preferences/constraints') } : undefined,

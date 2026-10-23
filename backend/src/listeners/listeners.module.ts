@@ -9,11 +9,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [ScheduleModule.forRoot(), ArtifactsModule, NotificationsModule],
-  providers: [
-    NpmArtifactListener,
-    MavenArtifactListener,
-    PypiArtifactListener,
-    ListenersOrchestrator,
-  ],
+  providers: [NpmArtifactListener, MavenArtifactListener, PypiArtifactListener, ListenersOrchestrator],
 })
 export class ListenersModule {}

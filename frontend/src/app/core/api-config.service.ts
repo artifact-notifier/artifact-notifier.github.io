@@ -8,7 +8,9 @@ import { APP_INITIALIZER, Injectable, Provider, inject, signal } from '@angular/
  *     ("": same origin, uses the dev proxy / the prod reverse proxy)
  */
 declare global {
-  interface Window { __API_BASE_URL__?: string }
+  interface Window {
+    __API_BASE_URL__?: string;
+  }
 }
 
 function normalizeBase(raw: string | null | undefined): string {
@@ -37,7 +39,9 @@ export class ApiConfigService {
     try {
       const res = await fetch('assets/api-config.json', { cache: 'no-store' });
       if (res.ok) fileBase = (await res.json())?.apiBaseUrl ?? '';
-    } catch { /* missing file = same-origin */ }
+    } catch {
+      /* missing file = same-origin */
+    }
     const override = typeof window !== 'undefined' ? window.__API_BASE_URL__ : '';
     this._base.set(normalizeBase(override || fileBase));
   }

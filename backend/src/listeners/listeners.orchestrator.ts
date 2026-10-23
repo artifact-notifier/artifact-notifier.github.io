@@ -24,10 +24,6 @@ export class ListenersOrchestrator implements OnModuleInit {
 
   @Interval(30000)
   async refreshFollowedCache() {
-    await Promise.all([
-      this.npm.refreshFollowed(),
-      this.maven.refreshFollowed(),
-      this.pypi.refreshFollowed(),
-    ]);
+    await Promise.all([this.npm.refreshFollowed(), this.maven.refreshFollowed(), this.pypi.refreshFollowed()]);
   }
 }

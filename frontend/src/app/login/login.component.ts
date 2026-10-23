@@ -22,14 +22,20 @@ import { Router } from '@angular/router';
           </ul>
         </div>
         @if (error) {
-          <p style="color:#dc2626">{{ i18n.t()('login.error', {msg: error}) }}</p>
+          <p style="color:#dc2626">{{ i18n.t()('login.error', { msg: error }) }}</p>
         }
         <div class="row">
           @for (p of providers(); track p.key) {
             <button class="btn provider-btn" (click)="login(p.key)">
-              <img [src]="logoFor(p.key)" [alt]="p.displayName" width="18" height="18" loading="lazy"
-                (error)="hideImg($event)" />
-              <span>{{ i18n.t()('login.with', {name: p.displayName}) }}</span>
+              <img
+                [src]="logoFor(p.key)"
+                [alt]="p.displayName"
+                width="18"
+                height="18"
+                loading="lazy"
+                (error)="hideImg($event)"
+              />
+              <span>{{ i18n.t()('login.with', { name: p.displayName }) }}</span>
             </button>
           }
           @if (providers()?.length === 0) {
@@ -40,8 +46,15 @@ import { Router } from '@angular/router';
           <div style="margin-top:1rem;border-top:1px solid var(--border);padding-top:1rem">
             <p class="muted" style="font-size:.85rem">{{ i18n.t()('login.telegram') }}</p>
             <div #telegramBox></div>
-            @if (telegramLoading()) { <p class="muted" style="font-size:.8rem">…</p> }
-            @if (telegramError) { <p style="color:#dc2626;font-size:.85rem">{{ telegramError }} <button class="btn secondary small" (click)="retryWidget()">{{ i18n.t()('telegram.retry') }}</button></p> }
+            @if (telegramLoading()) {
+              <p class="muted" style="font-size:.8rem">…</p>
+            }
+            @if (telegramError) {
+              <p style="color:#dc2626;font-size:.85rem">
+                {{ telegramError }}
+                <button class="btn secondary small" (click)="retryWidget()">{{ i18n.t()('telegram.retry') }}</button>
+              </p>
+            }
           </div>
         } @else if (telegram.config.isLoading()) {
           <p class="muted" style="font-size:.8rem">…</p>
@@ -49,16 +62,48 @@ import { Router } from '@angular/router';
       </div>
     </div>
   `,
-  styles: [`
-    .intro{background:rgba(127,127,127,.08);border-radius:8px;padding:.75rem 1rem;margin:.75rem 0;text-align:left}
-    .intro-title{font-weight:600;margin:0 0 .4rem}
-    .intro ul{margin:0;padding-left:1.1rem}
-    .intro li{margin:.25rem 0;font-size:.9rem}
-    .provider-btn{display:inline-flex;align-items:center;gap:.5rem}
-    .provider-btn img{width:18px;height:18px;flex:none}
-    .provider-btn{background:#fff;color:#1f2937;border:1px solid var(--border)}
-    :host-context(html.dark) .provider-btn{background:#1f2937;color:#f3f4f6}
-  `],
+  styles: [
+    `
+      .intro {
+        background: rgba(127, 127, 127, 0.08);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin: 0.75rem 0;
+        text-align: left;
+      }
+      .intro-title {
+        font-weight: 600;
+        margin: 0 0 0.4rem;
+      }
+      .intro ul {
+        margin: 0;
+        padding-left: 1.1rem;
+      }
+      .intro li {
+        margin: 0.25rem 0;
+        font-size: 0.9rem;
+      }
+      .provider-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .provider-btn img {
+        width: 18px;
+        height: 18px;
+        flex: none;
+      }
+      .provider-btn {
+        background: #fff;
+        color: #1f2937;
+        border: 1px solid var(--border);
+      }
+      :host-context(html.dark) .provider-btn {
+        background: #1f2937;
+        color: #f3f4f6;
+      }
+    `,
+  ],
 })
 export class LoginComponent {
   private auth = inject(AuthService);
@@ -71,9 +116,7 @@ export class LoginComponent {
   telegramBox = viewChild<ElementRef>('telegramBox');
   private widgetInjectedFor = signal<string | null>(null);
   private widgetFailed = signal(false);
-  protected readonly telegramLoading = computed(
-    () => this.telegram.config.isLoading() && !this.widgetInjectedFor(),
-  );
+  protected readonly telegramLoading = computed(() => this.telegram.config.isLoading() && !this.widgetInjectedFor());
 
   constructor() {
     const params = new URLSearchParams(window.location.search);
@@ -127,7 +170,9 @@ export class LoginComponent {
     else this.telegram.config.reload();
   }
 
-  login(key: string) { this.auth.loginWith(key); }
+  login(key: string) {
+    this.auth.loginWith(key);
+  }
 
   // Brand logos via devicon CDN (same pattern as eco-icon.component).
   // Unknown providers fall back to a generic OAuth icon; broken images hide themselves.
@@ -135,11 +180,14 @@ export class LoginComponent {
     const k = (key || '').toLowerCase();
     if (k === 'google') return 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/google/google-original.svg';
     if (k === 'github') return 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/github/github-original.svg';
-    if (k === 'facebook') return 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/facebook/facebook-original.svg';
+    if (k === 'facebook')
+      return 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/facebook/facebook-original.svg';
     return 'https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/oauth/oauth-original.svg';
   }
 
-  hideImg(e: Event) { (e.target as HTMLImageElement)?.remove(); }
+  hideImg(e: Event) {
+    (e.target as HTMLImageElement)?.remove();
+  }
 
   async onTelegramAuth(user: any) {
     try {

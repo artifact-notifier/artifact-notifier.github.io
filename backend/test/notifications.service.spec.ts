@@ -5,7 +5,11 @@ import { createUser, resetDb } from './db';
 
 const prisma = new PrismaClient();
 const mail = { send: jest.fn(), renderDigest: jest.fn(() => '<html>') };
-const telegram = { sendMessage: jest.fn(), formatImmediate: jest.fn(() => 'immediate'), formatDigest: jest.fn(() => 'digest') };
+const telegram = {
+  sendMessage: jest.fn(),
+  formatImmediate: jest.fn(() => 'immediate'),
+  formatDigest: jest.fn(() => 'digest'),
+};
 const notifications = new NotificationsService(
   prisma as any,
   mail as any,
@@ -28,7 +32,11 @@ afterAll(() => prisma.$disconnect());
 
 describe('NotificationsService', () => {
   it('sends Telegram immediately in IMMEDIATE mode, once', async () => {
-    await createUser(prisma, 'u1', { notificationMode: 'IMMEDIATE', notificationChannel: 'telegram', telegramChatId: '42' });
+    await createUser(prisma, 'u1', {
+      notificationMode: 'IMMEDIATE',
+      notificationChannel: 'telegram',
+      telegramChatId: '42',
+    });
     const fa = await follow('u1');
 
     await notifications.onNewVersion(fa.id, 'u1', 'NPM', 'pkg', '1.0.0');
@@ -64,7 +72,10 @@ describe('NotificationsService', () => {
     await notifications.processDigest();
     expect(mail.send).toHaveBeenCalledTimes(1);
 
-    await prisma.notificationDelivery.update({ where: { id: d.id }, data: { nextAttemptAt: new Date(Date.now() - 1) } });
+    await prisma.notificationDelivery.update({
+      where: { id: d.id },
+      data: { nextAttemptAt: new Date(Date.now() - 1) },
+    });
     await notifications.processDigest();
     [d] = await deliveries('u1');
     expect(d.status).toBe('SENT');

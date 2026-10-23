@@ -2,7 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import { ApiConfigService } from '../core/api-config.service';
 import { AuthService } from '../core/auth.service';
 
-export interface Delivery { channel: string; status: string; sentAt: string | null; }
+export interface Delivery {
+  channel: string;
+  status: string;
+  sentAt: string | null;
+}
 export interface FollowedArtifact {
   id: string;
   ecosystem: 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
@@ -10,14 +14,19 @@ export interface FollowedArtifact {
   currentVersion: string | null;
   events: { version: string; publishedAt: string; deliveries: Delivery[] }[];
 }
-export interface SearchResult { coordinates: string; description?: string; }
+export interface SearchResult {
+  coordinates: string;
+  description?: string;
+}
 export type SyncStatus = Record<string, { lastSync: string | null; lastSeq?: string | null }>;
 
 @Injectable({ providedIn: 'root' })
 export class ArtifactsService {
   private readonly api = inject(ApiConfigService);
   private readonly auth = inject(AuthService);
-  private url(path: string): string { return this.api.apiUrl(`/api/artifacts${path}`); }
+  private url(path: string): string {
+    return this.api.apiUrl(`/api/artifacts${path}`);
+  }
   private headers(extra: Record<string, string> = {}): Record<string, string> {
     return { ...this.auth.authHeaders(), ...extra };
   }

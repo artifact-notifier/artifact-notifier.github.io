@@ -1,18 +1,22 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Interval } from '@nestjs/schedule';
-import {
-  Configuration,
-  discovery,
-  skipSubjectCheck,
-  fetchUserInfo,
-} from 'openid-client';
+import { Configuration, discovery, skipSubjectCheck, fetchUserInfo } from 'openid-client';
 import * as crypto from 'crypto';
 import { ProviderConfig, OidcProfile } from './oidc.types';
 import { trimTrailingSlashes } from './session';
 
-export interface PendingMerge { toUserId: string; fromUserId: string; provider: string; expiresAt: number }
-export interface PendingLink { userId: string; profile: OidcProfile; expiresAt: number }
+export interface PendingMerge {
+  toUserId: string;
+  fromUserId: string;
+  provider: string;
+  expiresAt: number;
+}
+export interface PendingLink {
+  userId: string;
+  profile: OidcProfile;
+  expiresAt: number;
+}
 
 @Injectable()
 export class OidcService {
@@ -23,7 +27,10 @@ export class OidcService {
   // `linkUserId` set when the flow links a provider to an existing account
   // (instead of logging in): the callback attaches the identity and keeps
   // the current session instead of minting a new one.
-  private readonly verifiers = new Map<string, { codeVerifier: string; provider: string; linkUserId?: string; expiresAt: number }>();
+  private readonly verifiers = new Map<
+    string,
+    { codeVerifier: string; provider: string; linkUserId?: string; expiresAt: number }
+  >();
   // One-time account-link tokens (minted via authenticated API call, consumed
   // by the link redirect): full-page navigation can't carry a Bearer token,
   // so this bridges the logged-in session across the OAuth round-trip.
@@ -45,9 +52,7 @@ export class OidcService {
       }
     }
     if (this.providers.size === 0) {
-      this.logger.warn(
-        'No OIDC providers configured. Set OIDC_PROVIDERS and the related OIDC_<PROVIDER>_* env vars.',
-      );
+      this.logger.warn('No OIDC providers configured. Set OIDC_PROVIDERS and the related OIDC_<PROVIDER>_* env vars.');
     }
   }
 
@@ -62,7 +67,10 @@ export class OidcService {
     const displayName = this.getEnv(`${prefix}_DISPLAY_NAME`) || key;
     const scopesRaw = this.getEnv(`${prefix}_SCOPES`) || 'openid email profile';
     // Scopes may be comma- and/or space-separated (e.g. GitHub "read:user user:email")
-    const scopes = scopesRaw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    const scopes = scopesRaw
+      .split(/[\s,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
 
     if (!clientId || !clientSecret) {
       this.logger.warn(`OIDC provider "${key}" is missing CLIENT_ID/CLIENT_SECRET; skipping.`);
@@ -155,7 +163,12 @@ export class OidcService {
    * expects an OIDC token response (id_token) and fails with "invalid response
    * encountered". GitHub only returns an access_token (JSON when requested).
    */
-  async exchangeOAuth2Code(provider: string, code: string, redirectUri: string, codeVerifier?: string): Promise<string> {
+  async exchangeOAuth2Code(
+    provider: string,
+    code: string,
+    redirectUri: string,
+    codeVerifier?: string,
+  ): Promise<string> {
     const cfg = this.getProviderConfig(provider);
     const res = await fetch(cfg.tokenEndpoint!, {
       method: 'POST',
@@ -172,12 +185,20 @@ export class OidcService {
     });
     const raw = await res.text().catch(() => '');
     let json: any;
-    try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
+    try {
+      json = raw ? JSON.parse(raw) : null;
+    } catch {
+      json = null;
+    }
     if (!res.ok) {
-      throw new UnauthorizedException(`Token exchange failed: ${res.status} ${json?.error_description || json?.error || raw || res.statusText}`);
+      throw new UnauthorizedException(
+        `Token exchange failed: ${res.status} ${json?.error_description || json?.error || raw || res.statusText}`,
+      );
     }
     if (!json?.access_token) {
-      throw new UnauthorizedException(`Token exchange failed: ${json?.error_description || json?.error || 'no access_token'}`);
+      throw new UnauthorizedException(
+        `Token exchange failed: ${json?.error_description || json?.error || 'no access_token'}`,
+      );
     }
     return json.access_token as string;
   }
@@ -190,7 +211,11 @@ export class OidcService {
   async fetchOAuth2Profile(provider: string, accessToken: string): Promise<OidcProfile> {
     const cfg = this.getProviderConfig(provider);
     const res = await fetch(cfg.userinfoEndpoint!, {
-      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json', 'User-Agent': 'artifact-notifier' },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'artifact-notifier',
+      },
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) throw new UnauthorizedException(`Userinfo failed: ${res.status} ${res.statusText}`);
@@ -201,7 +226,11 @@ export class OidcService {
     if (!email && provider === 'github') {
       try {
         const er = await fetch('https://api.github.com/user/emails', {
-          headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json', 'User-Agent': 'artifact-notifier' },
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github+json',
+            'User-Agent': 'artifact-notifier',
+          },
           signal: AbortSignal.timeout(10000),
         });
         if (er.ok) {

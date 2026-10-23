@@ -19,7 +19,14 @@ import { TelegramService } from '../core/telegram.service';
     @if (p) {
       <div class="card">
         <label for="pref-email">{{ i18n.t()('preferences.email') }}</label>
-        <input id="pref-email" type="email" [ngModel]="p.email" (ngModelChange)="update('email', $event)" placeholder="you@example.com" style="width:100%;margin-top:.25rem" />
+        <input
+          id="pref-email"
+          type="email"
+          [ngModel]="p.email"
+          (ngModelChange)="update('email', $event)"
+          placeholder="you@example.com"
+          style="width:100%;margin-top:.25rem"
+        />
         @if (isPlaceholderEmail(p.email)) {
           <p class="muted" style="color:#dc2626;font-size:.8rem">{{ i18n.t()('preferences.email.telegramOnly') }}</p>
         }
@@ -27,11 +34,15 @@ import { TelegramService } from '../core/telegram.service';
         <label for="pref-channel" style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.channel') }}</label>
         <select id="pref-channel" [ngModel]="p.notificationChannel" (ngModelChange)="onChannelChange($event)">
           <option value="email">{{ i18n.t()('preferences.channel.email') }}</option>
-          <option value="telegram" [disabled]="!telegram.linked()">{{ i18n.t()('preferences.channel.telegram') }}</option>
+          <option value="telegram" [disabled]="!telegram.linked()">
+            {{ i18n.t()('preferences.channel.telegram') }}
+          </option>
           <option value="both" [disabled]="!telegram.linked()">{{ i18n.t()('preferences.channel.both') }}</option>
         </select>
         @if (!telegram.linked() && (p.notificationChannel === 'telegram' || p.notificationChannel === 'both')) {
-          <p class="muted" style="color:#dc2626;font-size:.8rem">{{ i18n.t()('preferences.channel.telegramRequired') }}</p>
+          <p class="muted" style="color:#dc2626;font-size:.8rem">
+            {{ i18n.t()('preferences.channel.telegramRequired') }}
+          </p>
         }
         @if (needsRealEmail()) {
           <p class="muted" style="color:#dc2626;font-size:.8rem">{{ i18n.t()('preferences.email.realRequired') }}</p>
@@ -39,7 +50,9 @@ import { TelegramService } from '../core/telegram.service';
 
         <label for="pref-mode" style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.mode') }}</label>
         <select id="pref-mode" [ngModel]="p.notificationMode" (ngModelChange)="update('notificationMode', $event)">
-          <option value="IMMEDIATE" [disabled]="!immediateAllowed()">{{ i18n.t()('preferences.mode.immediate') }}</option>
+          <option value="IMMEDIATE" [disabled]="!immediateAllowed()">
+            {{ i18n.t()('preferences.mode.immediate') }}
+          </option>
           <option value="DIGEST">{{ i18n.t()('preferences.mode.digest') }}</option>
         </select>
         @if (!immediateAllowed()) {
@@ -47,8 +60,14 @@ import { TelegramService } from '../core/telegram.service';
         }
 
         @if (p.notificationMode === 'DIGEST' || !immediateAllowed()) {
-          <label for="pref-interval" style="display:block; margin-top:1rem;">{{ i18n.t()('preferences.interval') }}</label>
-          <select id="pref-interval" [ngModel]="p.digestIntervalMinutes" (ngModelChange)="update('digestIntervalMinutes', +$event)">
+          <label for="pref-interval" style="display:block; margin-top:1rem;">{{
+            i18n.t()('preferences.interval')
+          }}</label>
+          <select
+            id="pref-interval"
+            [ngModel]="p.digestIntervalMinutes"
+            (ngModelChange)="update('digestIntervalMinutes', +$event)"
+          >
             @for (opt of intervalOptions(); track opt.value) {
               <option [value]="opt.value">{{ opt.label }}</option>
             }
@@ -57,7 +76,11 @@ import { TelegramService } from '../core/telegram.service';
         }
 
         <label style="display:flex; align-items:center; gap:.5rem; margin-top:1rem;">
-          <input type="checkbox" [ngModel]="p.includePrereleases" (ngModelChange)="update('includePrereleases', $event)" />
+          <input
+            type="checkbox"
+            [ngModel]="p.includePrereleases"
+            (ngModelChange)="update('includePrereleases', $event)"
+          />
           {{ i18n.t()('preferences.prereleases') }}
         </label>
         <p class="muted" style="font-size:.8rem">{{ i18n.t()('preferences.prereleases.hint') }}</p>
@@ -65,17 +88,19 @@ import { TelegramService } from '../core/telegram.service';
         <div class="card" style="margin-top:1rem;background:var(--hover)">
           <h3 style="margin:0 0 .5rem">📲 {{ i18n.t()('telegram.title') }}</h3>
           @if (telegram.linked()) {
-            <p class="muted">{{ i18n.t()('telegram.linkedAs', {label: telegramLabel()}) }}</p>
+            <p class="muted">{{ i18n.t()('telegram.linkedAs', { label: telegramLabel() }) }}</p>
             <button class="btn secondary small" (click)="unlinkTelegram()">{{ i18n.t()('telegram.unlink') }}</button>
           } @else {
             <p class="muted" style="font-size:.85rem">{{ i18n.t()('telegram.notLinked') }}</p>
             @if (telegram.enabled()) {
               <div #telegramLinkBox></div>
               <p class="muted" style="font-size:.75rem">{{ i18n.t()('telegram.hint') }}</p>
-            }             @else {
+            } @else {
               <p class="muted" style="font-size:.85rem">{{ i18n.t()('telegram.notConfigured') }}</p>
             }
-            @if (telegramError) { <p style="color:#dc2626;font-size:.85rem">{{ telegramError }}</p> }
+            @if (telegramError) {
+              <p style="color:#dc2626;font-size:.85rem">{{ telegramError }}</p>
+            }
           }
         </div>
 
@@ -89,7 +114,9 @@ import { TelegramService } from '../core/telegram.service';
                   <span style="flex:1">{{ l.displayName }}</span>
                   @if (l.linked) {
                     <span class="muted" style="font-size:.8rem">✓ {{ i18n.t()('linked.linked') }}</span>
-                    <button class="btn secondary small" (click)="unlinkProvider(l.key)">{{ i18n.t()('linked.unlink') }}</button>
+                    <button class="btn secondary small" (click)="unlinkProvider(l.key)">
+                      {{ i18n.t()('linked.unlink') }}
+                    </button>
                   } @else {
                     <button class="btn small" (click)="linkProvider(l.key)">{{ i18n.t()('linked.link') }}</button>
                   }
@@ -108,18 +135,24 @@ import { TelegramService } from '../core/telegram.service';
 
         <div style="margin-top:1rem;">
           <button class="btn" (click)="save()">{{ i18n.t()('preferences.save') }}</button>
-          @if (saved()) { <span class="muted"> {{ i18n.t()('preferences.saved') }}</span> }
+          @if (saved()) {
+            <span class="muted"> {{ i18n.t()('preferences.saved') }}</span>
+          }
         </div>
 
         @if (mergeToken()) {
           <div class="card" style="margin-top:1rem;border:1.5px solid #2563eb">
             <h3 style="margin:0 0 .5rem">🔀 {{ i18n.t()('merge.title') }}</h3>
             @if (mergePreview.value(); as m) {
-              <p class="muted" style="font-size:.85rem">{{ i18n.t()('merge.detail', {from: m.from.email, to: m.to.email}) }}</p>
+              <p class="muted" style="font-size:.85rem">
+                {{ i18n.t()('merge.detail', { from: m.from.email, to: m.to.email }) }}
+              </p>
               <ul class="muted" style="font-size:.85rem">
-                <li>{{ i18n.t()('merge.follows', {n: '' + m.followsToMove}) }}</li>
-                <li>{{ i18n.t()('merge.identities', {n: '' + m.identitiesToMove}) }}</li>
-                @if (m.telegramToMove) { <li>{{ i18n.t()('merge.telegram') }}</li> }
+                <li>{{ i18n.t()('merge.follows', { n: '' + m.followsToMove }) }}</li>
+                <li>{{ i18n.t()('merge.identities', { n: '' + m.identitiesToMove }) }}</li>
+                @if (m.telegramToMove) {
+                  <li>{{ i18n.t()('merge.telegram') }}</li>
+                }
               </ul>
               <div class="row">
                 <button class="btn" (click)="confirmMerge()">{{ i18n.t()('merge.confirm') }}</button>
@@ -387,15 +420,18 @@ export class PreferencesComponent {
       // if telegram is not linked, force email
       if (!this.telegram.linked() && (dto.notificationChannel === 'telegram' || dto.notificationChannel === 'both')) {
         (dto as any).notificationChannel = 'email';
-        this.prefs.update(v => v ? { ...v, notificationChannel: 'email' as any } : v);
+        this.prefs.update((v) => (v ? { ...v, notificationChannel: 'email' as any } : v));
       }
       // mail is digest-only: align locally so the backend validation passes.
       const allowed = this.preferencesService.constraints.value()?.immediateChannels ?? ['telegram'];
       if (!allowed.includes(dto.notificationChannel)) dto.notificationMode = 'DIGEST';
       const min = this.preferencesService.constraints.value()?.mailMinDigestMinutes ?? 1440;
-      if ((dto.notificationChannel === 'email' || dto.notificationChannel === 'both') && dto.digestIntervalMinutes < min) {
+      if (
+        (dto.notificationChannel === 'email' || dto.notificationChannel === 'both') &&
+        dto.digestIntervalMinutes < min
+      ) {
         dto.digestIntervalMinutes = min;
-        this.prefs.update(v => v ? { ...v, digestIntervalMinutes: min } : v);
+        this.prefs.update((v) => (v ? { ...v, digestIntervalMinutes: min } : v));
       }
       await this.preferencesService.update(dto);
       this.prefsRes.reload();

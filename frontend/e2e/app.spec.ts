@@ -56,7 +56,10 @@ test.describe('logged in', () => {
 
   test('preferences open from the header', async ({ page }) => {
     await page.goto('/');
-    await page.locator('nav.app-nav').getByRole('link', { name: /Préférences/ }).click();
+    await page
+      .locator('nav.app-nav')
+      .getByRole('link', { name: /Préférences/ })
+      .click();
     await expect(page).toHaveURL(/#\/preferences$/);
     await expect(page.getByLabel('Email de notification')).toHaveValue(USER.email);
     expect(await horizontalOverflow(page)).toBe(0);
@@ -64,7 +67,10 @@ test.describe('logged in', () => {
 
   test('logging out returns to the login page', async ({ page }) => {
     await page.goto('/');
-    await page.locator('nav.app-nav').getByRole('button', { name: /Déconnexion/ }).click();
+    await page
+      .locator('nav.app-nav')
+      .getByRole('button', { name: /Déconnexion/ })
+      .click();
     await expect(page).toHaveURL(/#\/login$/);
   });
 });

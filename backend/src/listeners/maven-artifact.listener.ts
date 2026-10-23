@@ -30,20 +30,13 @@ interface CentralComponent {
 }
 
 @Injectable()
-export class MavenArtifactListener
-  extends ArtifactListener<number>
-  implements OnModuleInit, OnModuleDestroy
-{
+export class MavenArtifactListener extends ArtifactListener<number> implements OnModuleInit, OnModuleDestroy {
   readonly ecosystem = Ecosystem.MAVEN;
   defaultSequence = Date.now();
   private running = false;
   private sweeping = false;
 
-  constructor(
-    artifacts: ArtifactsService,
-    notifications: NotificationsService,
-    prisma: PrismaService,
-  ) {
+  constructor(artifacts: ArtifactsService, notifications: NotificationsService, prisma: PrismaService) {
     super(artifacts, notifications, prisma);
   }
 
@@ -116,7 +109,9 @@ export class MavenArtifactListener
     let truncated = false;
     for (;;) {
       if (page > MAX_PAGE) {
-        this.logger.error(`[Maven] pagination truncated at page=${MAX_PAGE} (API limit 10000 artifacts) — lastSync=${lastSync} not reached, history incomplete`);
+        this.logger.error(
+          `[Maven] pagination truncated at page=${MAX_PAGE} (API limit 10000 artifacts) — lastSync=${lastSync} not reached, history incomplete`,
+        );
         truncated = true;
         break;
       }
@@ -132,7 +127,9 @@ export class MavenArtifactListener
           const retryAfter = this.parseRetryAfter((e as any).retryAfter);
           // Observed window ~4min30, wait a fixed 30s (or Retry-After if provided)
           const waitMs = retryAfter ?? RETRY_429_MS;
-          this.logger.warn(`[Maven] 429 rate-limited page=${page} after ${Date.now() - t0}ms, retrying same page in ${waitMs}ms`);
+          this.logger.warn(
+            `[Maven] 429 rate-limited page=${page} after ${Date.now() - t0}ms, retrying same page in ${waitMs}ms`,
+          );
           await this.sleep(waitMs);
           continue; // retry same page, do not restart from 0
         }
@@ -179,7 +176,9 @@ export class MavenArtifactListener
     }
 
     if (truncated) {
-      this.logger.error(`[Maven] pagination done (TRUNCATED) pages=${pagesFetched} newArtifacts=${artifacts.length} maxTs=${maxTs} — full history not loaded, next sync will resume from updated sequence`);
+      this.logger.error(
+        `[Maven] pagination done (TRUNCATED) pages=${pagesFetched} newArtifacts=${artifacts.length} maxTs=${maxTs} — full history not loaded, next sync will resume from updated sequence`,
+      );
     } else {
       this.logger.log(`[Maven] pagination done pages=${pagesFetched} newArtifacts=${artifacts.length} maxTs=${maxTs}`);
     }
@@ -193,7 +192,9 @@ export class MavenArtifactListener
     // Even when truncated, advance the sequence with what we have to avoid looping forever
     if (artifacts.length > 0) {
       await this.updateSequence(maxTs);
-      this.logger.log(`[Maven] sequence updated to ${maxTs} (${new Date(maxTs).toISOString()})${truncated ? ' (truncated)' : ''}`);
+      this.logger.log(
+        `[Maven] sequence updated to ${maxTs} (${new Date(maxTs).toISOString()})${truncated ? ' (truncated)' : ''}`,
+      );
     } else {
       this.logger.log(`[Maven] no new artifacts, sequence unchanged`);
     }

@@ -3,7 +3,10 @@ import { httpResource } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { ApiConfigService } from './api-config.service';
 
-export interface Provider { key: string; displayName: string; }
+export interface Provider {
+  key: string;
+  displayName: string;
+}
 export interface Profile {
   id: string;
   email: string;

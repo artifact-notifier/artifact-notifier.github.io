@@ -4,8 +4,15 @@ import { AuthService } from './auth.service';
 import { PreferencesService } from '../preferences/preferences.service';
 import { ApiConfigService } from './api-config.service';
 
-export interface TelegramConfig { enabled: boolean; botUsername: string | null; }
-export interface TelegramStatus { linked: boolean; telegramId: string | null; telegramUsername: string | null; }
+export interface TelegramConfig {
+  enabled: boolean;
+  botUsername: string | null;
+}
+export interface TelegramStatus {
+  linked: boolean;
+  telegramId: string | null;
+  telegramUsername: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class TelegramService {
@@ -54,7 +61,11 @@ export class TelegramService {
   }
 
   async unlink(): Promise<void> {
-    const res = await fetch(this.api.apiUrl('/api/auth/telegram/unlink'), { method: 'DELETE', credentials: 'include', headers: this.headers() });
+    const res = await fetch(this.api.apiUrl('/api/auth/telegram/unlink'), {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: this.headers(),
+    });
     if (!res.ok) throw await res.json().catch(() => ({ message: 'Unlink failed' }));
     this.status.reload();
     this.auth.refresh();

@@ -26,7 +26,9 @@ const ARTIFACTS = [
     ecosystem: 'MAVEN',
     coordinates: 'org.springframework.boot:spring-boot',
     currentVersion: '4.1.2',
-    events: [{ version: '4.1.2', publishedAt: '2026-10-22T14:04:04Z', deliveries: [{ status: 'SENT', channel: 'email' }] }],
+    events: [
+      { version: '4.1.2', publishedAt: '2026-10-22T14:04:04Z', deliveries: [{ status: 'SENT', channel: 'email' }] },
+    ],
   },
   { id: 'a2', ecosystem: 'NPM', coordinates: '@angular/core', currentVersion: '22.2.3', events: [] },
 ];

@@ -28,13 +28,13 @@ artifact-notifier/
 2. Each listener filters by the **set of followed artifacts** (cached, refreshed
    every 30 s). Everything else is ignored.
 3. For a followed artifact whose version is higher than the known version:
-    - update of `FollowedArtifact.currentVersion`
-    - creation of an `ArtifactVersionEvent` (only 1 per `(artifact, version)`)
-    - creation of a **PENDING `NotificationDelivery` per user** following the artifact
+   - update of `FollowedArtifact.currentVersion`
+   - creation of an `ArtifactVersionEvent` (only 1 per `(artifact, version)`)
+   - creation of a **PENDING `NotificationDelivery` per user** following the artifact
 4. Depending on user preferences:
-    - `IMMEDIATE` → email sent right away, delivery marked `SENT`
-    - `DIGEST` → recap email sent once the configured interval has elapsed, grouping
-      all `PENDING` deliveries of that user
+   - `IMMEDIATE` → email sent right away, delivery marked `SENT`
+   - `DIGEST` → recap email sent once the configured interval has elapsed, grouping
+     all `PENDING` deliveries of that user
 
 Notification state is therefore **per (event, user)** via the
 `NotificationDelivery` table — two users following the same artifact with different
@@ -66,26 +66,29 @@ npm run backend:migrate
 The backend loads providers from `.env` via `OIDC_PROVIDERS` (comma-separated
 list). For each provider `xxx` (lowercase), fill in:
 
-| Variable | Description |
-|---|---|
-| `OIDC_XXX_DISPLAY_NAME` | Name shown on the login button |
-| `OIDC_XXX_ISSUER` | OIDC issuer (discovery `.well-known`) — Google, Facebook |
+| Variable                                                                   | Description                                              |
+| -------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `OIDC_XXX_DISPLAY_NAME`                                                    | Name shown on the login button                           |
+| `OIDC_XXX_ISSUER`                                                          | OIDC issuer (discovery `.well-known`) — Google, Facebook |
 | `OIDC_XXX_AUTHORIZATION_ENDPOINT` / `TOKEN_ENDPOINT` / `USERINFO_ENDPOINT` | Manual endpoints (GitHub has no standard OIDC discovery) |
-| `OIDC_XXX_CLIENT_ID` / `OIDC_XXX_CLIENT_SECRET` | OAuth credentials from your provider |
-| `OIDC_XXX_SCOPES` | Requested scopes |
+| `OIDC_XXX_CLIENT_ID` / `OIDC_XXX_CLIENT_SECRET`                            | OAuth credentials from your provider                     |
+| `OIDC_XXX_SCOPES`                                                          | Requested scopes                                         |
 
 ### Google
+
 1. Create an "OAuth application" in [Google Cloud Console](https://console.cloud.google.com/).
 2. Add the redirect URI: `http://localhost:3000/api/auth/google/callback`.
 3. Fill in `OIDC_GOOGLE_CLIENT_ID` / `OIDC_GOOGLE_CLIENT_SECRET`, `OIDC_GOOGLE_ISSUER=https://accounts.google.com`.
 
 ### GitHub
+
 1. [Developer settings → OAuth Apps → New OAuth App](https://github.com/settings/developers).
 2. Authorization callback URL: `http://localhost:3000/api/auth/github/callback`.
 3. Fill in `OIDC_GITHUB_CLIENT_ID` / `OIDC_GITHUB_CLIENT_SECRET` (endpoints are
    pre-filled in `.env.example`).
 
 ### Facebook
+
 1. [Meta for Developers → App → Facebook Login](https://developers.facebook.com/).
 2. Valid OAuth Redirect URI: `http://localhost:3000/api/auth/facebook/callback`.
 3. Fill in `OIDC_FACEBOOK_CLIENT_ID` / `OIDC_FACEBOOK_CLIENT_SECRET`.
@@ -102,6 +105,7 @@ npm run dev
 - Frontend: http://localhost:4200
 
 Open http://localhost:4200, sign in via an OIDC provider, then:
+
 1. Add a followed artifact (e.g. npm `react`, or maven `org.springframework:spring-core`).
 2. Wait for / trigger a new version → an `ArtifactVersionEvent` is created **only**
    for followed artifacts.
@@ -147,7 +151,7 @@ npm run format:check  # Prettier (npm run format to fix)
 - **CI** (`.github/workflows/ci.yml`, every push and PR): format, lint, tests
   with coverage, builds, e2e, then a SonarCloud analysis fed with both lcov
   reports. The analysis needs the `SONAR_TOKEN` repository secret and
-  *Automatic Analysis* turned off in SonarCloud (coverage is only accepted from
+  _Automatic Analysis_ turned off in SonarCloud (coverage is only accepted from
   CI-based analysis).
 
 ## Production deployment

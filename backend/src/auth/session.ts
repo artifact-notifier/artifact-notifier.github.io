@@ -45,7 +45,11 @@ export function sessionCookieOptions(config: ConfigService): CookieOptions {
   };
 }
 
-export function signSession(jwt: JwtService, config: ConfigService, user: { id: string; email: string; provider: string }): string {
+export function signSession(
+  jwt: JwtService,
+  config: ConfigService,
+  user: { id: string; email: string; provider: string },
+): string {
   return jwt.sign(
     { sub: user.id, email: user.email, provider: user.provider },
     {

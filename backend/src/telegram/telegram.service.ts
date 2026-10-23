@@ -49,8 +49,7 @@ export class TelegramService {
   // Feature flag: Telegram login/link is temporarily disabled (does not work yet).
   // Set TELEGRAM_ENABLED=true once fixed. Defaults to false.
   isEnabled(): boolean {
-    const flag =
-      this.config.get<string>('TELEGRAM_ENABLED') || process.env.TELEGRAM_ENABLED;
+    const flag = this.config.get<string>('TELEGRAM_ENABLED') || process.env.TELEGRAM_ENABLED;
     return flag === 'true' && this.isConfigured();
   }
 

@@ -70,8 +70,9 @@ describe('OidcService.fetchOAuth2Profile (GitHub)', () => {
   function mockGithub(user: object, emails: object[]) {
     jest
       .spyOn(global, 'fetch')
-      .mockImplementation(async (url) =>
-        new Response(JSON.stringify(String(url).endsWith('/user/emails') ? emails : user), { status: 200 }),
+      .mockImplementation(
+        async (url) =>
+          new Response(JSON.stringify(String(url).endsWith('/user/emails') ? emails : user), { status: 200 }),
       );
   }
 

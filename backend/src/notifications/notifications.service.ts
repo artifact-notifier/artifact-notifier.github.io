@@ -5,7 +5,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail/mail.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { t } from '../i18n/notifications.i18n';
-import { ArtifactVersionEvent, Ecosystem, NotificationDelivery, NotificationMode, User, UserPreferences } from '@prisma/client';
+import {
+  ArtifactVersionEvent,
+  Ecosystem,
+  NotificationDelivery,
+  NotificationMode,
+  User,
+  UserPreferences,
+} from '@prisma/client';
 
 const MAX_ATTEMPTS = 8;
 // Retry delay after the n-th failure: 1, 2, 4… 128 min (~4h in total)
@@ -92,11 +99,7 @@ export class NotificationsService implements OnModuleInit {
     return ['email'];
   }
 
-  private async sendImmediate(
-    user: User,
-    event: ArtifactVersionEvent,
-    prefs: UserPreferences | null,
-  ): Promise<void> {
+  private async sendImmediate(user: User, event: ArtifactVersionEvent, prefs: UserPreferences | null): Promise<void> {
     // Telegram-only: never send mail immediately (digest cron handles it).
     if (!this.getChannels(prefs).includes('telegram')) return;
     const delivery = await this.prisma.notificationDelivery.findUnique({
@@ -204,13 +207,22 @@ export class NotificationsService implements OnModuleInit {
 
       const claimed = await this.claim(items);
       if (!claimed.length) continue;
-      const lines = claimed.map((d) => ({ coordinates: d.event.coordinates, ecosystem: d.event.ecosystem, version: d.event.version }));
+      const lines = claimed.map((d) => ({
+        coordinates: d.event.coordinates,
+        ecosystem: d.event.ecosystem,
+        version: d.event.version,
+      }));
       try {
         if (ch === 'email') {
           // Notification address (editable in preferences), not the account identity.
           const to = prefs?.email && !/\.local$/i.test(prefs.email) ? prefs.email : user.email;
-          if (/\.local$/i.test(to)) throw new PermanentDeliveryError('No real email address set (Telegram-only account)');
-          await this.mail.send(to, t(prefs?.locale, 'emailDigestSubject', lines.length), this.mail.renderDigest(lines, prefs?.locale));
+          if (/\.local$/i.test(to))
+            throw new PermanentDeliveryError('No real email address set (Telegram-only account)');
+          await this.mail.send(
+            to,
+            t(prefs?.locale, 'emailDigestSubject', lines.length),
+            this.mail.renderDigest(lines, prefs?.locale),
+          );
         } else if (ch === 'telegram') {
           const chatId = this.getChatId(user, prefs);
           if (!chatId) throw new PermanentDeliveryError('Telegram not linked');

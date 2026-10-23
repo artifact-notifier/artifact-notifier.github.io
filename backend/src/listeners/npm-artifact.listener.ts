@@ -16,19 +16,12 @@ interface NpmChangesResponse {
 }
 
 @Injectable()
-export class NpmArtifactListener
-  extends ArtifactListener<number>
-  implements OnModuleInit, OnModuleDestroy
-{
+export class NpmArtifactListener extends ArtifactListener<number> implements OnModuleInit, OnModuleDestroy {
   readonly ecosystem = Ecosystem.NPM;
   defaultSequence = 0;
   private running = false;
 
-  constructor(
-    artifacts: ArtifactsService,
-    notifications: NotificationsService,
-    prisma: PrismaService,
-  ) {
+  constructor(artifacts: ArtifactsService, notifications: NotificationsService, prisma: PrismaService) {
     super(artifacts, notifications, prisma);
   }
 
@@ -49,7 +42,10 @@ export class NpmArtifactListener
     }
     await this.start();
     // migrate legacy 'now' sequence if present
-    if ((this.sequence as any) === 'now' || (typeof this.sequence === 'string' && Number.isNaN(Number(this.sequence)))) {
+    if (
+      (this.sequence as any) === 'now' ||
+      (typeof this.sequence === 'string' && Number.isNaN(Number(this.sequence)))
+    ) {
       const seq = await this.fetchUpdateSeq();
       if (seq) {
         await this.updateSequence(seq);

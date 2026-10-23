@@ -4,14 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "frontend/**"
-      - ".github/workflows/deploy-frontend.yml"
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
     inputs:
       api_base_url:
-        description: "Public API URL (e.g. https://xxx.trycloudflare.com)"
+        description: 'Public API URL (e.g. https://xxx.trycloudflare.com)'
         required: false
-        default: ""
+        default: ''
 
 permissions: {}
 

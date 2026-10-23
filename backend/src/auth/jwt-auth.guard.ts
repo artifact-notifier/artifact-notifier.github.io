@@ -8,12 +8,14 @@ export type { AuthedUser };
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwt: JwtService, private readonly config: ConfigService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>();
-    const token =
-      this.extractFromCookie(req) || this.extractFromHeader(req);
+    const token = this.extractFromCookie(req) || this.extractFromHeader(req);
     if (!token) throw new UnauthorizedException('Missing token');
 
     try {

@@ -19,20 +19,43 @@ const DISMISS_KEY = 'telegram-banner.dismissed';
     }
   `,
   styles: `
-    .tg-banner{display:flex;align-items:center;gap:.75rem;background:#0f766e;color:#fff;border-radius:10px;padding:.6rem .9rem;margin:.75rem 0}
-    .tg-text{flex:1;font-size:.9rem}
-    .tg-banner .btn{background:#fff;color:#0f766e;border:none}
-    .tg-close{background:transparent;border:none;color:#fff;font-size:1rem;cursor:pointer;opacity:.8}
-    .tg-close:hover{opacity:1}
+    .tg-banner {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #0f766e;
+      color: #fff;
+      border-radius: 10px;
+      padding: 0.6rem 0.9rem;
+      margin: 0.75rem 0;
+    }
+    .tg-text {
+      flex: 1;
+      font-size: 0.9rem;
+    }
+    .tg-banner .btn {
+      background: #fff;
+      color: #0f766e;
+      border: none;
+    }
+    .tg-close {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      opacity: 0.8;
+    }
+    .tg-close:hover {
+      opacity: 1;
+    }
   `,
 })
 export class TelegramBannerComponent {
   private readonly auth = inject(AuthService);
   protected readonly telegram = inject(TelegramService);
   protected readonly i18n = inject(I18nService);
-  private readonly dismissed = signal(
-    typeof localStorage !== 'undefined' && localStorage.getItem(DISMISS_KEY) === '1',
-  );
+  private readonly dismissed = signal(typeof localStorage !== 'undefined' && localStorage.getItem(DISMISS_KEY) === '1');
 
   protected readonly visible = computed(() => {
     if (!this.auth.user()) return false;
@@ -44,6 +67,8 @@ export class TelegramBannerComponent {
     this.dismissed.set(true);
     try {
       localStorage.setItem(DISMISS_KEY, '1');
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 }

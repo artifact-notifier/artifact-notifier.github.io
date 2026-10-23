@@ -9,7 +9,13 @@ type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
   imports: [EcoIconComponent],
   template: `
     <div class="eco-select" [class.open]="open()">
-      <button type="button" class="eco-trigger" (click)="open.set(!open())" [attr.aria-expanded]="open()" aria-haspopup="listbox">
+      <button
+        type="button"
+        class="eco-trigger"
+        (click)="open.set(!open())"
+        [attr.aria-expanded]="open()"
+        aria-haspopup="listbox"
+      >
         <eco-icon [ecosystem]="value()" />
         <span class="eco-label">{{ label(value()) }}</span>
         <span class="chevron">▾</span>
@@ -17,10 +23,19 @@ type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
       @if (open()) {
         <ul class="eco-options" role="listbox">
           @for (eco of choices; track eco) {
-            <li role="option" tabindex="0" [attr.aria-selected]="eco === value()" [class.active]="eco === value()" (click)="pick(eco)" (keydown.enter)="pick(eco)">
+            <li
+              role="option"
+              tabindex="0"
+              [attr.aria-selected]="eco === value()"
+              [class.active]="eco === value()"
+              (click)="pick(eco)"
+              (keydown.enter)="pick(eco)"
+            >
               <eco-icon [ecosystem]="eco" />
               <span>{{ label(eco) }}</span>
-              @if (eco === value()) { <span class="check">✓</span> }
+              @if (eco === value()) {
+                <span class="check">✓</span>
+              }
             </li>
           }
         </ul>
@@ -28,16 +43,77 @@ type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
     </div>
   `,
   styles: `
-    .eco-select{position:relative;display:inline-block}
-    .eco-trigger{display:flex;align-items:center;gap:.5rem;height:38px;padding:0 .7rem;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text);cursor:pointer;min-width:150px;box-sizing:border-box;font-size:.9rem}
-    .eco-trigger:hover{border-color:var(--muted)}
-    .eco-trigger:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
-    .eco-label{font-size:.9rem;font-weight:600;color:var(--text)}
-    .chevron{margin-left:auto;color:var(--muted);font-size:.75rem}
-    .eco-options{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 20px rgba(0,0,0,.12);list-style:none;margin:0;padding:4px;z-index:20}
-    .eco-options li{display:flex;align-items:center;gap:.5rem;padding:.5rem .6rem;border-radius:6px;cursor:pointer;color:var(--text);font-size:.9rem}
-    .eco-options li:hover,.eco-options li.active{background:var(--hover-strong);color:var(--text)}
-    .check{margin-left:auto;color:#2563eb;font-weight:700}
+    .eco-select {
+      position: relative;
+      display: inline-block;
+    }
+    .eco-trigger {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      height: 38px;
+      padding: 0 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text);
+      cursor: pointer;
+      min-width: 150px;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+    }
+    .eco-trigger:hover {
+      border-color: var(--muted);
+    }
+    .eco-trigger:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+    .eco-label {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .chevron {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.75rem;
+    }
+    .eco-options {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+      list-style: none;
+      margin: 0;
+      padding: 4px;
+      z-index: 20;
+    }
+    .eco-options li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      border-radius: 6px;
+      cursor: pointer;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .eco-options li:hover,
+    .eco-options li.active {
+      background: var(--hover-strong);
+      color: var(--text);
+    }
+    .check {
+      margin-left: auto;
+      color: #2563eb;
+      font-weight: 700;
+    }
   `,
 })
 export class EcosystemSelectComponent {

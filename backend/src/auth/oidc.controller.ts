@@ -8,7 +8,8 @@ import {
   Query,
   Req,
   Res,
-  UnauthorizedException, UseGuards,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response, Request } from 'express';
@@ -24,7 +25,7 @@ import { UsersService } from './users.service';
 import { JwtService } from '@nestjs/jwt';
 import { Public } from './decorators';
 import { CurrentUser, AuthedUser } from './decorators';
-import {JwtAuthGuard} from "./jwt-auth.guard";
+import { JwtAuthGuard } from './jwt-auth.guard';
 import { apiPublicUrl, frontendUrl, SESSION_COOKIE, sessionCookieOptions, signSession } from './session';
 
 @Controller('auth')
@@ -35,7 +36,6 @@ export class OidcController {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
-
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -120,11 +120,7 @@ export class OidcController {
 
   @Public()
   @Get(':provider/link')
-  async link(
-    @Param('provider') provider: string,
-    @Query('token') token: string,
-    @Res() res: Response,
-  ) {
+  async link(@Param('provider') provider: string, @Query('token') token: string, @Res() res: Response) {
     const hashPrefix = this.frontendUrl().includes('#') ? this.frontendUrl() : `${this.frontendUrl()}/#`;
     try {
       const userId = this.oidc.consumeLinkToken(token || '');
@@ -245,9 +241,7 @@ export class OidcController {
     } catch (e) {
       // Link flow errors go back to preferences (session is still valid there).
       const dest = verifier.linkUserId ? 'preferences' : 'login';
-      return res.redirect(
-        `${hashPrefix}/${dest}?error=${encodeURIComponent((e as Error).message)}`,
-      );
+      return res.redirect(`${hashPrefix}/${dest}?error=${encodeURIComponent((e as Error).message)}`);
     }
   }
 

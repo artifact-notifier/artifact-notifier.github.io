@@ -47,10 +47,12 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.title': 'Préférences de notification',
     'preferences.email': 'Email de notification',
     'preferences.email.telegramOnly': 'Compte Telegram : renseignez votre vraie adresse pour recevoir des mails.',
-    'preferences.email.realRequired': 'Une vraie adresse mail est requise pour le canal mail — sinon choisissez Telegram.',
+    'preferences.email.realRequired':
+      'Une vraie adresse mail est requise pour le canal mail — sinon choisissez Telegram.',
     'preferences.mode': 'Mode',
     'preferences.mode.immediate': 'Immédiat (à chaque nouvelle version)',
-    'preferences.mode.immediateTelegramOnly': '⚡ L’instantané est réservé à Telegram : le mail est en récapitulatif quotidien au mieux.',
+    'preferences.mode.immediateTelegramOnly':
+      '⚡ L’instantané est réservé à Telegram : le mail est en récapitulatif quotidien au mieux.',
     'preferences.mode.digest': 'Récapitulatif (à interval régulier)',
     'preferences.interval': 'Interval du récapitulatif',
     'preferences.interval.daily': 'Quotidien',
@@ -58,7 +60,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.interval.monthly': 'Mensuel',
     'preferences.interval.mailMin': 'Le mail est groupé : quotidien au mieux (configurable côté backend).',
     'preferences.prereleases': 'Inclure les pré-versions (alpha, beta, milestone, RC…)',
-    'preferences.prereleases.hint': 'Par défaut, seules les versions stables sont notifiées, y compris les correctifs d’anciennes branches (ex. 4.0.9 après 4.1.2).',
+    'preferences.prereleases.hint':
+      'Par défaut, seules les versions stables sont notifiées, y compris les correctifs d’anciennes branches (ex. 4.0.9 après 4.1.2).',
     'preferences.save': 'Enregistrer',
     'preferences.saved': '✓ Enregistré',
     'preferences.language': 'Langue',
@@ -175,7 +178,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.email.realRequired': 'Se requiere un correo real para el canal de correo — o elige Telegram.',
     'preferences.mode': 'Modo',
     'preferences.mode.immediate': 'Inmediato (en cada nueva versión)',
-    'preferences.mode.immediateTelegramOnly': '⚡ Lo instantáneo es solo Telegram: el correo es un resumen diario como mínimo.',
+    'preferences.mode.immediateTelegramOnly':
+      '⚡ Lo instantáneo es solo Telegram: el correo es un resumen diario como mínimo.',
     'preferences.mode.digest': 'Resumen (a intervalo regular)',
     'preferences.interval': 'Intervalo del resumen',
     'preferences.interval.daily': 'Diario',
@@ -183,7 +187,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.interval.monthly': 'Mensual',
     'preferences.interval.mailMin': 'El correo se agrupa: diario como mínimo (configurable en el backend).',
     'preferences.prereleases': 'Incluir versiones preliminares (alpha, beta, milestone, RC…)',
-    'preferences.prereleases.hint': 'Por defecto solo se notifican las versiones estables, incluidos los parches de ramas anteriores (p. ej. 4.0.9 tras 4.1.2).',
+    'preferences.prereleases.hint':
+      'Por defecto solo se notifican las versiones estables, incluidos los parches de ramas anteriores (p. ej. 4.0.9 tras 4.1.2).',
     'preferences.save': 'Guardar',
     'preferences.saved': '✓ Guardado',
     'preferences.language': 'Idioma',
@@ -300,7 +305,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.email.realRequired': 'Für den Mail-Kanal ist eine echte Adresse nötig — oder wähle Telegram.',
     'preferences.mode': 'Modus',
     'preferences.mode.immediate': 'Sofort (bei jeder neuen Version)',
-    'preferences.mode.immediateTelegramOnly': '⚡ Sofort geht nur per Telegram: E-Mail kommt als Zusammenfassung, täglich oder seltener.',
+    'preferences.mode.immediateTelegramOnly':
+      '⚡ Sofort geht nur per Telegram: E-Mail kommt als Zusammenfassung, täglich oder seltener.',
     'preferences.mode.digest': 'Zusammenfassung (in regelmäßigem Intervall)',
     'preferences.interval': 'Intervall der Zusammenfassung',
     'preferences.interval.daily': 'Täglich',
@@ -308,7 +314,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.interval.monthly': 'Monatlich',
     'preferences.interval.mailMin': 'E-Mails werden gebündelt: täglich oder seltener (Backend-konfigurierbar).',
     'preferences.prereleases': 'Vorabversionen einbeziehen (Alpha, Beta, Milestone, RC…)',
-    'preferences.prereleases.hint': 'Standardmäßig werden nur stabile Versionen gemeldet, auch Patches älterer Zweige (z. B. 4.0.9 nach 4.1.2).',
+    'preferences.prereleases.hint':
+      'Standardmäßig werden nur stabile Versionen gemeldet, auch Patches älterer Zweige (z. B. 4.0.9 nach 4.1.2).',
     'preferences.save': 'Speichern',
     'preferences.saved': '✓ Gespeichert',
     'preferences.language': 'Sprache',
@@ -353,7 +360,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'telegramBanner.dismiss': 'Schließen',
     'login.telegram': 'Oder mit Telegram anmelden',
     'test.title': '🧪 Testmodus (dev)',
-    'test.subtitle': 'Erstelle ein isoliertes TEST-Artefakt und simuliere eine neue Version zum Testen der Benachrichtigungen.',
+    'test.subtitle':
+      'Erstelle ein isoliertes TEST-Artefakt und simuliere eine neue Version zum Testen der Benachrichtigungen.',
     'test.coords': 'Coordinates',
     'test.version': 'Version',
     'test.simulate': 'Simulieren',
@@ -558,7 +566,8 @@ const DICT: Record<Lang, Record<string, string>> = {
     'preferences.interval.monthly': 'Monthly',
     'preferences.interval.mailMin': 'Mail is batched: daily at best (configurable on the backend).',
     'preferences.prereleases': 'Include prereleases (alpha, beta, milestone, RC…)',
-    'preferences.prereleases.hint': 'By default only stable versions are notified, including patches of older lines (e.g. 4.0.9 after 4.1.2).',
+    'preferences.prereleases.hint':
+      'By default only stable versions are notified, including patches of older lines (e.g. 4.0.9 after 4.1.2).',
     'preferences.save': 'Save',
     'preferences.saved': '✓ Saved',
     'preferences.language': 'Language',
@@ -649,7 +658,7 @@ export class I18nService {
   });
 
   constructor() {
-    effect(() => document.documentElement.lang = this._lang());
+    effect(() => (document.documentElement.lang = this._lang()));
 
     // sync depuis BDD quand dispo - source unique PreferencesService
     effect(() => {

@@ -18,7 +18,11 @@ class TestListener extends ArtifactListener<number> {
   }
   async sync() {}
   handle(versions: string[], complete = true) {
-    return this.handleVersions(C, versions.map((version): PublishedVersion => ({ version })), complete);
+    return this.handleVersions(
+      C,
+      versions.map((version): PublishedVersion => ({ version })),
+      complete,
+    );
   }
 }
 
@@ -33,7 +37,9 @@ beforeEach(async () => {
   await createUser(prisma, 'stable');
   await createUser(prisma, 'pre', { includePrereleases: true });
   for (const userId of ['stable', 'pre']) {
-    await prisma.followedArtifact.create({ data: { userId, ecosystem: 'MAVEN', coordinates: C, currentVersion: '4.1.1' } });
+    await prisma.followedArtifact.create({
+      data: { userId, ecosystem: 'MAVEN', coordinates: C, currentVersion: '4.1.1' },
+    });
   }
   listener = new TestListener();
   await listener.refreshFollowed();

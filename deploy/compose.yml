@@ -9,7 +9,7 @@ services:
       DATABASE_URL: file:/data/artifact-notifier.db
     # Only nginx (on the host) talks to the backend
     ports:
-      - "127.0.0.1:3000:3000"
+      - '127.0.0.1:3000:3000'
     volumes:
       - ./data:/data
     read_only: true
@@ -24,4 +24,4 @@ services:
       driver: json-file
       options:
         max-size: 10m
-        max-file: "3"
+        max-file: '3'

@@ -9,16 +9,12 @@ export interface AuthedUser {
   provider: string;
 }
 
-export const CurrentUser = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext): AuthedUser => {
-    const req = ctx.switchToHttp().getRequest();
-    return req.user;
-  },
-);
+export const CurrentUser = createParamDecorator((data: unknown, ctx: ExecutionContext): AuthedUser => {
+  const req = ctx.switchToHttp().getRequest();
+  return req.user;
+});
 
-export const AuthProvider = createParamDecorator(
-  (data: unknown, ctx: ExecutionContext) => {
-    const req = ctx.switchToHttp().getRequest();
-    return req.authProvider;
-  },
-);
+export const AuthProvider = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
+  const req = ctx.switchToHttp().getRequest();
+  return req.authProvider;
+});

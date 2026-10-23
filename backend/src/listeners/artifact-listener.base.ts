@@ -105,12 +105,19 @@ export abstract class ArtifactListener<T extends string | number> {
 
     const known = await this.artifacts.getKnownVersions(this.ecosystem, artifactId);
     if (complete && known.size === 0) {
-      this.logger.log(`[${this.ecoLabel}] baseline ${artifactId}: ${versions.length} versions recorded, no notification`);
-      await this.artifacts.addKnownVersions(this.ecosystem, artifactId, versions.map((v) => v.version));
+      this.logger.log(
+        `[${this.ecoLabel}] baseline ${artifactId}: ${versions.length} versions recorded, no notification`,
+      );
+      await this.artifacts.addKnownVersions(
+        this.ecosystem,
+        artifactId,
+        versions.map((v) => v.version),
+      );
       return;
     }
-    const fresh = [...new Map(versions.filter((v) => !known.has(v.version)).map((v) => [v.version, v])).values()]
-      .sort((a, b) => compareVersions(a.version, b.version));
+    const fresh = [...new Map(versions.filter((v) => !known.has(v.version)).map((v) => [v.version, v])).values()].sort(
+      (a, b) => compareVersions(a.version, b.version),
+    );
     if (fresh.length === 0) {
       this.logger.debug(`[${this.ecoLabel}] skip already-known ${artifactId}`);
       return;
@@ -127,7 +134,11 @@ export abstract class ArtifactListener<T extends string | number> {
       }
     }
     if (failed) return;
-    await this.artifacts.addKnownVersions(this.ecosystem, artifactId, fresh.map((v) => v.version));
+    await this.artifacts.addKnownVersions(
+      this.ecosystem,
+      artifactId,
+      fresh.map((v) => v.version),
+    );
   }
 
   private async notifyFollower(f: FollowedEntry, artifactId: string, fresh: PublishedVersion[]) {
@@ -137,7 +148,9 @@ export abstract class ArtifactListener<T extends string | number> {
         this.logger.debug(`[${this.ecoLabel}] skip prerelease ${artifactId}@${version} user=${f.userId}`);
         continue;
       }
-      this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`);
+      this.logger.log(
+        `[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`,
+      );
       await this.notifications.onNewVersion(
         f.followedArtifactId,
         f.userId,
