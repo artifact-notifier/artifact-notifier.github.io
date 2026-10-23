@@ -33,11 +33,51 @@ const ARTIFACTS = [
   { id: 'a2', ecosystem: 'NPM', coordinates: '@angular/core', currentVersion: '22.2.3', events: [] },
 ];
 
+const ADMIN_STATS = {
+  users: {
+    total: 2,
+    new7d: 1,
+    new30d: 2,
+    byProvider: { google: 2 },
+    byChannel: { email: 2 },
+    byMode: { DIGEST: 2 },
+    telegramLinked: 0,
+    withPrereleases: 1,
+  },
+  artifacts: {
+    follows: 2,
+    distinct: 2,
+    byEcosystem: { MAVEN: 1, NPM: 1 },
+    top: [{ ecosystem: 'MAVEN', coordinates: 'org.springframework.boot:spring-boot-starter-parent', followers: 1 }],
+    knownVersions: 1421,
+  },
+  notifications: { deliveriesByChannel: { email: { SENT: 3 } }, sent24h: 1, sent7d: 3, failed7d: 0, events7d: 4 },
+  listeners: { NPM: { lastSync: '2026-10-23T18:00:00Z' }, MAVEN: { lastSync: '2026-10-23T18:00:00Z' } },
+  system: { version: '0123456789abcdef', uptimeSeconds: 3600, databaseBytes: 204800 },
+};
+
+const ADMIN_USERS = [
+  {
+    id: 'cm0000000000000000000001',
+    email: USER.email,
+    name: USER.name,
+    createdAt: '2026-10-01T00:00:00Z',
+    providers: ['google', 'github'],
+    follows: 2,
+    channel: 'email',
+    mode: 'DIGEST',
+    telegramLinked: false,
+    includePrereleases: true,
+    lastNotifiedAt: '2026-10-22T10:00:00Z',
+    isAdmin: true,
+  },
+];
+
 /**
  * Answers every /api call like the backend would. `loggedIn: false` makes
  * /api/auth/me answer 401, as for a visitor without a session.
  */
-export async function mockApi(page: Page, { loggedIn }: { loggedIn: boolean }) {
+export async function mockApi(page: Page, { loggedIn, admin = false }: { loggedIn: boolean; admin?: boolean }) {
   const json = (route: Route, body: unknown, status = 200) =>
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -54,7 +94,7 @@ export async function mockApi(page: Page, { loggedIn }: { loggedIn: boolean }) {
       case '/api/auth/telegram/config':
         return json(route, { enabled: false, botUsername: null });
       case '/api/auth/me':
-        return loggedIn ? json(route, USER) : unauthorized();
+        return loggedIn ? json(route, { ...USER, isAdmin: admin }) : unauthorized();
     }
     if (!loggedIn) return unauthorized();
     switch (pathname) {
@@ -76,6 +116,10 @@ export async function mockApi(page: Page, { loggedIn }: { loggedIn: boolean }) {
         return json(route, [{ key: 'google', displayName: 'Google', linked: true }]);
       case '/api/auth/telegram/status':
         return json(route, { linked: false, telegramId: null, telegramUsername: null });
+      case '/api/admin/stats':
+        return admin ? json(route, ADMIN_STATS) : json(route, { statusCode: 403 }, 403);
+      case '/api/admin/users':
+        return admin ? json(route, ADMIN_USERS) : json(route, { statusCode: 403 }, 403);
       case '/api/auth/logout':
         return json(route, { success: true });
       default:

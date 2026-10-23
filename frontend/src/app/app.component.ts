@@ -28,6 +28,20 @@ import { ToastComponent } from './core/toast.component';
         </select>
       </label>
       @if (auth.user(); as u) {
+        @if (u.isAdmin) {
+          <a
+            routerLink="/admin"
+            class="btn secondary small"
+            [attr.aria-label]="i18n.t()('nav.admin')"
+            [title]="i18n.t()('nav.admin')"
+          >
+            @if (narrow()) {
+              🛡️
+            } @else {
+              {{ i18n.t()('nav.admin') }}
+            }
+          </a>
+        }
         <a
           routerLink="/preferences"
           class="btn secondary small"

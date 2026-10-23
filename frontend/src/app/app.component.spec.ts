@@ -16,7 +16,9 @@ function mockViewport(narrow: boolean) {
 }
 
 describe('AppComponent header', () => {
-  const user = signal<{ name: string; email: string } | null>({ name: 'Jane Doe', email: 'jane@example.test' });
+  const user = signal<{ name: string; email: string; isAdmin?: boolean } | null>(null);
+
+  beforeEach(() => user.set({ name: 'Jane Doe', email: 'jane@example.test' }));
 
   function render(narrow: boolean) {
     mockViewport(narrow);
@@ -56,5 +58,14 @@ describe('AppComponent header', () => {
     const logout = el.querySelector('nav button.btn') as HTMLButtonElement;
     expect(logout.querySelector('svg')).toBeNull();
     expect(logout.textContent?.trim().length).toBeGreaterThan(0);
+  });
+
+  it('shows the admin link to admins only', () => {
+    expect(render(false).querySelector('a[href="/admin"]')).toBeNull();
+    TestBed.resetTestingModule();
+    user.set({ name: 'Jane Doe', email: 'jane@example.test', isAdmin: true });
+    const link = render(true).querySelector('a[href="/admin"]');
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute('aria-label')).toContain('Admin');
   });
 });

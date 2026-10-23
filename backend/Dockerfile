@@ -16,8 +16,10 @@ RUN npm run build && npm prune --omit=dev
 # ---- Runtime: production deps only, non-root ----
 FROM node:22-bookworm-slim
 WORKDIR /app
+ARG APP_VERSION=dev
 RUN apt-get update && apt-get install -y --no-install-recommends openssl tini && rm -rf /var/lib/apt/lists/*
-ENV NODE_ENV=production \
+ENV APP_VERSION=$APP_VERSION \
+    NODE_ENV=production \
     DATABASE_URL=file:/data/artifact-notifier.db
 COPY --from=build --chown=root:root /app/package.json ./
 COPY --from=build --chown=root:root /app/node_modules ./node_modules

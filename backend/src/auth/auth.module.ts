@@ -6,6 +6,7 @@ import { OidcController } from './oidc.controller';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { PreferencesController } from './preferences.controller';
+import { AdminGuard } from './admin.guard';
 
 @Module({
   imports: [
@@ -20,7 +21,7 @@ import { PreferencesController } from './preferences.controller';
     }),
   ],
   controllers: [OidcController, PreferencesController],
-  providers: [OidcService, UsersService, JwtAuthGuard],
-  exports: [OidcService, UsersService, JwtAuthGuard, JwtModule],
+  providers: [OidcService, UsersService, JwtAuthGuard, AdminGuard],
+  exports: [OidcService, UsersService, JwtAuthGuard, AdminGuard, JwtModule],
 })
 export class AuthModule {}

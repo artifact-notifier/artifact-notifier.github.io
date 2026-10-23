@@ -16,6 +16,8 @@ export interface Profile {
   telegramId?: string | null;
   telegramUsername?: string | null;
   preferences?: any;
+  /** set by the API from ADMIN_USER_IDS; the admin API checks it on every call */
+  isAdmin?: boolean;
 }
 
 const ACCESS_TOKEN_KEY = 'artifact-notifier.accessToken';

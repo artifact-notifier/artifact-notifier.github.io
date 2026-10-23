@@ -50,6 +50,7 @@ jobs:
         with:
           context: backend
           platforms: linux/arm64
+          build-args: APP_VERSION=${{ github.sha }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

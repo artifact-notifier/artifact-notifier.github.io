@@ -26,6 +26,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from './decorators';
 import { CurrentUser, AuthedUser } from './decorators';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { adminUserIds } from './admin.guard';
 import { apiPublicUrl, frontendUrl, SESSION_COOKIE, sessionCookieOptions, signSession } from './session';
 
 @Controller('auth')
@@ -43,7 +44,7 @@ export class OidcController {
     const user = await this.users.findById(req.user.sub);
     if (!user) throw new UnauthorizedException();
     const { preferences, ...rest } = user;
-    return { ...rest, preferences };
+    return { ...rest, preferences, isAdmin: adminUserIds(this.config).has(user.id) };
   }
 
   @Get('logout')

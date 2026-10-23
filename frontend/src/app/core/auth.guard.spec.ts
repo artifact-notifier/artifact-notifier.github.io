@@ -3,7 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRouteSnapshot, provideRouter, RouterStateSnapshot, UrlTree } from '@angular/router';
-import { authGuard } from './auth.guard';
+import { adminGuard, authGuard } from './auth.guard';
 
 describe('authGuard', () => {
   let http: HttpTestingController;
@@ -47,5 +47,30 @@ describe('authGuard', () => {
     const result = run();
     await answerMe({ id: 'u1', email: 'u1@example.test' });
     expect(await result).toBe(true);
+  });
+
+  describe('adminGuard', () => {
+    const runAdmin = () =>
+      TestBed.runInInjectionContext(() =>
+        adminGuard({} as ActivatedRouteSnapshot, {} as RouterStateSnapshot),
+      ) as Promise<boolean | UrlTree>;
+
+    it('lets an admin through', async () => {
+      const result = runAdmin();
+      await answerMe({ id: 'u1', email: 'u1@example.test', isAdmin: true });
+      expect(await result).toBe(true);
+    });
+
+    it('sends a regular user back to the dashboard', async () => {
+      const result = runAdmin();
+      await answerMe({ id: 'u1', email: 'u1@example.test', isAdmin: false });
+      expect(String(await result)).toBe('/');
+    });
+
+    it('sends a visitor to login', async () => {
+      const result = runAdmin();
+      await answerMe({ message: 'Unauthorized' }, 401);
+      expect(String(await result)).toBe('/login');
+    });
   });
 });

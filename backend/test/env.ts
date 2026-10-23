@@ -15,6 +15,7 @@ Object.assign(process.env, {
   SMTP_PASS: 'test',
   MAIL_FROM: 'Test <test@example.test>',
   OIDC_PROVIDERS: '',
+  ADMIN_USER_IDS: 'admin, other-admin',
   TELEGRAM_BOT_TOKEN: '123456:TEST-TOKEN',
   TELEGRAM_BOT_USERNAME: 'notifier_test_bot',
   TELEGRAM_ENABLED: 'true',

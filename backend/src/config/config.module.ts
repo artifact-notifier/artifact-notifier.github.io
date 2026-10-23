@@ -23,6 +23,8 @@ export const validationSchema = Joi.object({
   // Daily (1440) by default; lower it in dev for faster testing (e.g. 1).
   MAIL_MIN_DIGEST_INTERVAL_MINUTES: Joi.number().integer().min(1).default(1440),
   OIDC_PROVIDERS: Joi.string().allow('').default(''),
+  // Account ids (User.id) allowed on the admin pages, comma-separated
+  ADMIN_USER_IDS: Joi.string().allow('').default(''),
 });
 
 @Module({

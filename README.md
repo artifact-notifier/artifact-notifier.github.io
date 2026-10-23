@@ -133,6 +133,19 @@ See `backend/prisma/schema.prisma`: `User`, `UserPreferences`, `FollowedArtifact
 - `ListenerSequence` allows resuming npm/Maven/PyPI tracking where it stopped
   (`_changes` sequence / timestamp / RSS etag).
 
+## Admin page
+
+`/#/admin` lists the users and usage statistics (accounts, follows, notifications,
+listeners, system). Access is granted by **account id** in the backend `.env`:
+
+```bash
+ADMIN_USER_IDS=cm1abc...,cm2def...   # User.id, shown by GET /api/auth/me
+```
+
+The id is used rather than the email on purpose: emails come from the identity
+providers and may change. The API (`/api/admin/*`) enforces it on every call;
+the frontend only hides the link for other users.
+
 ## Tests and code quality
 
 ```bash

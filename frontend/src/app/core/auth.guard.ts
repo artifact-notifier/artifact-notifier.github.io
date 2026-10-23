@@ -4,9 +4,10 @@ import { CanActivateFn, Router } from '@angular/router';
 import { filter, firstValueFrom, timeout, catchError, of } from 'rxjs';
 import { AuthService } from './auth.service';
 
-export const authGuard: CanActivateFn = async () => {
+/** Resolves the session (waiting for /api/auth/me), true when logged in. */
+async function loggedIn(): Promise<boolean> {
+  // inject() before the first await: still in the injection context
   const auth = inject(AuthService);
-  const router = inject(Router);
 
   if (auth.user()) return true;
 
@@ -21,7 +22,18 @@ export const authGuard: CanActivateFn = async () => {
   );
   auth.syncUser();
 
-  if (auth.user()) return true;
+  return !!auth.user();
+}
 
-  return router.createUrlTree(['/login']);
+export const authGuard: CanActivateFn = async () => {
+  const router = inject(Router);
+  return (await loggedIn()) || router.createUrlTree(['/login']);
+};
+
+/** Convenience only: the admin API enforces ADMIN_USER_IDS itself. */
+export const adminGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  if (!(await loggedIn())) return router.createUrlTree(['/login']);
+  return auth.user()?.isAdmin ? true : router.createUrlTree(['/']);
 };

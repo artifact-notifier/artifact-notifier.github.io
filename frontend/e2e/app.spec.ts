@@ -83,3 +83,23 @@ test.describe('logged in', () => {
     await expect(page).toHaveURL(/#\/login$/);
   });
 });
+
+test.describe('admin', () => {
+  test('an admin opens the admin page from the header', async ({ page }) => {
+    await mockApi(page, { loggedIn: true, admin: true });
+    await page.goto('/');
+    await page.locator('nav.app-nav').getByRole('link', { name: /Admin/ }).click();
+    await expect(page).toHaveURL(/#\/admin$/);
+    await expect(page.locator('.tile .value').first()).toHaveText('2');
+    await expect(page.getByText('cm0000000000000000000001')).toBeVisible();
+    expect(await horizontalOverflow(page)).toBe(0);
+  });
+
+  test('a regular user is sent back to the dashboard', async ({ page }) => {
+    await mockApi(page, { loggedIn: true });
+    await page.goto('/');
+    await expect(page.locator('nav.app-nav').getByRole('link', { name: /Admin/ })).toHaveCount(0);
+    await page.goto('/#/admin');
+    await expect(page).toHaveURL(/#\/$/);
+  });
+});

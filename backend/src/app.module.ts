@@ -8,6 +8,7 @@ import { ArtifactsModule } from './artifacts/artifacts.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ListenersModule } from './listeners/listeners.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TelegramModule } from './telegram/telegram.module';
     NotificationsModule,
     ListenersModule,
     TelegramModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
