@@ -6,6 +6,7 @@ import { TelegramService, TelegramAuthData } from './telegram.service';
 import { UsersService } from '../auth/users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthedUser, Public } from '../auth/decorators';
+import { SESSION_COOKIE, sessionCookieOptions, signSession } from '../auth/session';
 
 @Controller('auth/telegram')
 export class TelegramController {
@@ -47,17 +48,10 @@ export class TelegramController {
       avatarUrl: profile.avatarUrl,
     });
 
-    const token = this.jwt.sign(
-      { sub: user.id, email: user.email, provider: user.provider },
-      { secret: this.config.get<string>('JWT_SECRET'), expiresIn: (this.config.get<string>('JWT_EXPIRES_IN') || '7d') as any },
-    );
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: this.config.get<string>('NODE_ENV') === 'production',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-    return { success: true, user };
+    const token = signSession(this.jwt, this.config, user);
+    res.cookie(SESSION_COOKIE, token, sessionCookieOptions(this.config));
+    // Bearer fallback, like the OIDC callback: the cookie is third-party when cross-origin
+    return { success: true, user, token };
   }
 
   @Post('link')

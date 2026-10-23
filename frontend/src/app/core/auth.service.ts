@@ -82,6 +82,12 @@ export class AuthService {
     return new URLSearchParams(loc.search).get('access_token');
   }
 
+  /** Session obtained outside the OAuth redirect (Telegram login): store it, then reload /me. */
+  acceptToken(t: string) {
+    this.setToken(t);
+    this.refresh();
+  }
+
   private setToken(t: string | null) {
     this._token.set(t);
     if (t) localStorage.setItem(ACCESS_TOKEN_KEY, t);
@@ -111,6 +117,18 @@ export class AuthService {
     if (!res.ok) throw await res.json().catch(() => ({ message: 'Link failed' }));
     const { token } = await res.json();
     window.location.href = this.api.apiUrl(`/api/auth/${provider}/link?token=${token}`);
+  }
+
+  /** Confirms the identity returned by a link round-trip (merge token if it belongs to another account). */
+  async confirmLink(token: string): Promise<{ linked?: string; merge?: string }> {
+    const res = await fetch(this.api.apiUrl('/api/auth/link/confirm'), {
+      method: 'POST',
+      credentials: 'include',
+      headers: { ...this.authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) throw await res.json().catch(() => ({ message: 'Link failed' }));
+    return res.json();
   }
 
   async unlinkProvider(provider: string): Promise<void> {

@@ -43,13 +43,14 @@ export class UsersService {
       return legacy;
     }
 
-    // 3. Same email from another provider (e.g. Google then GitHub):
-    // link the new provider to the existing account instead of failing on email uniqueness.
+    // 3. Same *verified* email from another provider (e.g. Google then GitHub):
+    // link the new provider to the existing account. An unverified address proves
+    // nothing (anyone can claim it at some providers), so it never matches.
     const byEmail = await this.prisma.user.findUnique({
       where: { email: profile.email },
       include: { preferences: true },
     });
-    if (byEmail) {
+    if (byEmail && profile.emailVerified) {
       await this.prisma.linkedIdentity.upsert({
         where: { provider_providerSubject: { provider: profile.provider, providerSubject: profile.providerSubject } },
         create: { userId: byEmail.id, provider: profile.provider, providerSubject: profile.providerSubject },
@@ -58,10 +59,13 @@ export class UsersService {
       return byEmail;
     }
 
-    // 4. Brand new account (+ its first identity + preferences)
+    // 4. Brand new account (+ its first identity + preferences). An unverified
+    // address already taken gets a placeholder (User.email is unique); the user
+    // can still link/merge accounts from the preferences page.
+    const email = byEmail ? `${profile.providerSubject}@${profile.provider}.local` : profile.email;
     return this.prisma.user.create({
       data: {
-        email: profile.email,
+        email,
         name: profile.name,
         avatarUrl: profile.avatarUrl,
         provider: profile.provider,
@@ -71,7 +75,7 @@ export class UsersService {
         },
         preferences: {
           create: {
-            email: profile.email,
+            email,
             notificationMode: NotificationMode.DIGEST,
             digestIntervalMinutes: 1440,
           },
@@ -193,7 +197,7 @@ export class UsersService {
         data: { userId, provider: profile.provider, providerSubject: profile.providerSubject },
       });
     }
-    if (user.preferences && /\.local$/i.test(user.preferences.email) && !/\.local$/i.test(profile.email)) {
+    if (user.preferences && /\.local$/i.test(user.preferences.email) && profile.emailVerified) {
       await this.prisma.userPreferences.update({
         where: { userId },
         data: { email: profile.email },
@@ -390,7 +394,6 @@ export class UsersService {
       locale?: string;
       theme?: string;
       notificationChannel?: string;
-      telegramChatId?: string;
       includePrereleases?: boolean;
     },
   ) {
@@ -430,7 +433,6 @@ export class UsersService {
     if (dto.theme && ['light', 'dark', 'system'].includes(dto.theme)) data.theme = dto.theme;
     if (dto.notificationChannel && ['email', 'telegram', 'both'].includes(dto.notificationChannel))
       data.notificationChannel = dto.notificationChannel;
-    if (dto.telegramChatId !== undefined) data.telegramChatId = dto.telegramChatId;
     if (dto.includePrereleases !== undefined) data.includePrereleases = dto.includePrereleases;
 
     return this.prisma.userPreferences.upsert({

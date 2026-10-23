@@ -1,12 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { IsEnum, IsString, Matches, MaxLength } from 'class-validator';
 import { ArtifactsService } from './artifacts.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser, AuthedUser } from '../auth/decorators';
 import { Ecosystem } from '@prisma/client';
 
-interface FollowDto {
-  ecosystem: Ecosystem;
-  coordinates: string;
+class FollowDto {
+  @IsEnum(Ecosystem)
+  ecosystem!: Ecosystem;
+
+  // npm names are <= 214 chars; Maven group:artifact and PyPI names stay well below
+  @IsString()
+  @MaxLength(256)
+  @Matches(/^[\w.@\/:-]+$/)
+  coordinates!: string;
 }
 
 @Controller('artifacts')
@@ -40,7 +47,7 @@ export class ArtifactsController {
   }
 
   @Get('search')
-  search(@Query('ecosystem') ecosystem: Ecosystem, @Query('q') q: string) {
-    return this.artifacts.search(ecosystem, q);
+  search(@Query('ecosystem', new ParseEnumPipe(Ecosystem)) ecosystem: Ecosystem, @Query('q') q: string) {
+    return this.artifacts.search(ecosystem, (q ?? '').slice(0, 256));
   }
 }

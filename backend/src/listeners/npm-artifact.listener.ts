@@ -126,10 +126,7 @@ export class NpmArtifactListener
         const versions = await this.resolveVersions(change.id);
         if (versions?.length) {
           this.logger.debug(`[NPM] resolved ${change.id}: ${versions.length} versions`);
-          for (const v of versions) {
-            const t = v.publishedAt?.getTime();
-            if (t && !isNaN(t) && (latestFollowedTime === null || t > latestFollowedTime)) latestFollowedTime = t;
-          }
+          latestFollowedTime = Date.now();
           await this.handleVersions(change.id, versions, true);
         } else {
           this.logger.debug(`[NPM] no version for ${change.id}`);

@@ -18,17 +18,19 @@ export async function fetchMavenVersions(coordinates: string): Promise<Published
   return [...xml.matchAll(/<version>\s*([^<\s]+)\s*<\/version>/g)].map((m) => ({ version: m[1] }));
 }
 
-/** Every published version of an npm package with its publish date. */
+/**
+ * Every published version of an npm package. Uses the abbreviated metadata
+ * (install manifests only, no readme/time): the full packument of busy packages
+ * weighs tens of MB. Publish dates are therefore unknown (detection time is used).
+ */
 export async function fetchNpmVersions(pkg: string): Promise<PublishedVersion[] | null> {
   const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pkg)}`, {
+    headers: { Accept: 'application/vnd.npm.install-v1+json' },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`npm registry ${res.status} ${res.statusText} for ${pkg}`);
   const json = await res.json();
-  return Object.keys(json.versions ?? {}).map((version) => {
-    const t = json.time?.[version];
-    return { version, publishedAt: t ? new Date(t) : undefined };
-  });
+  return Object.keys(json.versions ?? {}).map((version) => ({ version }));
 }
 
 export async function fetchPypiVersions(name: string): Promise<PublishedVersion[] | null> {

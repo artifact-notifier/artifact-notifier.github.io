@@ -1,5 +1,7 @@
 export interface OidcProfile {
   email: string;
+  /** The provider asserts the user owns `email`: only then may it match an existing account. */
+  emailVerified: boolean;
   name?: string;
   avatarUrl?: string;
   provider: string;

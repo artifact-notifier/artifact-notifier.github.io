@@ -14,6 +14,7 @@ import * as crypto from 'crypto';
 import { ProviderConfig, OidcProfile } from './oidc.types';
 
 export interface PendingMerge { toUserId: string; fromUserId: string; provider: string; expiresAt: number }
+export interface PendingLink { userId: string; profile: OidcProfile; expiresAt: number }
 
 @Injectable()
 export class OidcService {
@@ -196,7 +197,9 @@ export class OidcService {
     });
     if (!res.ok) throw new UnauthorizedException(`Userinfo failed: ${res.status} ${res.statusText}`);
     const u = await res.json();
+    // GitHub only lets users publish a verified address as their public email
     let email: string | undefined = u.email || undefined;
+    let emailVerified = !!email && provider === 'github';
     if (!email && provider === 'github') {
       try {
         const er = await fetch('https://api.github.com/user/emails', {
@@ -205,7 +208,9 @@ export class OidcService {
         });
         if (er.ok) {
           const emails = await er.json();
-          email = emails?.find((e: any) => e.primary && e.verified)?.email || emails?.find((e: any) => e.verified)?.email || emails?.[0]?.email;
+          const verified = emails?.find((e: any) => e.primary && e.verified) || emails?.find((e: any) => e.verified);
+          email = verified?.email || emails?.[0]?.email;
+          emailVerified = !!verified;
         }
       } catch {
         // ignore, fallback below applies
@@ -214,6 +219,7 @@ export class OidcService {
     if (!email) email = `${u.id ?? u.login ?? 'user'}@${provider}.local`;
     return {
       email,
+      emailVerified,
       name: u.name || u.login || u.preferred_username,
       avatarUrl: u.avatar_url || u.picture,
       provider,
@@ -244,6 +250,9 @@ export class OidcService {
     }
     for (const [k, v] of this.pendingMerges.entries()) {
       if (now > v.expiresAt) this.pendingMerges.delete(k);
+    }
+    for (const [k, v] of this.pendingLinks.entries()) {
+      if (now > v.expiresAt) this.pendingLinks.delete(k);
     }
   }
 
@@ -289,6 +298,26 @@ export class OidcService {
     return m;
   }
 
+  // Identities returned by a link round-trip, waiting for the session that asked
+  // for the link to confirm it: the link token travels in a URL, so whoever opens
+  // that URL completes the OAuth step, but only the requesting user can confirm.
+  private readonly pendingLinks = new Map<string, PendingLink>();
+
+  createPendingLink(userId: string, profile: OidcProfile): string {
+    const token = crypto.randomBytes(32).toString('hex');
+    this.pendingLinks.set(token, { userId, profile, expiresAt: Date.now() + 10 * 60_000 });
+    return token;
+  }
+
+  /** One-time: returns the pending link only if it belongs to `userId`. */
+  consumePendingLink(token: string, userId: string): PendingLink | undefined {
+    const p = this.pendingLinks.get(token);
+    if (!p) return undefined;
+    this.pendingLinks.delete(token);
+    if (Date.now() > p.expiresAt || p.userId !== userId) return undefined;
+    return p;
+  }
+
   async fetchProfile(
     provider: string,
     tokenset: { access_token?: string; claims(): Record<string, any> | undefined },
@@ -304,10 +333,10 @@ export class OidcService {
       claims = tokenset.claims() || {};
     }
 
-    const email =
-      claims.email || (claims.emails && claims.emails[0]) || `${claims.sub}@${provider}.local`;
+    const realEmail: string | undefined = claims.email || (claims.emails && claims.emails[0]);
     return {
-      email,
+      email: realEmail || `${claims.sub}@${provider}.local`,
+      emailVerified: !!realEmail && (claims.email_verified === true || claims.email_verified === 'true'),
       name: claims.name || claims.login || claims.preferred_username,
       avatarUrl: claims.picture || claims.avatar_url,
       provider,

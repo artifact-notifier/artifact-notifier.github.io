@@ -76,11 +76,6 @@ import { TelegramService } from '../core/telegram.service';
               <p class="muted" style="font-size:.85rem">{{ i18n.t()('telegram.notConfigured') }}</p>
             }
             @if (telegramError) { <p style="color:#dc2626;font-size:.85rem">{{ telegramError }}</p> }
-            <!-- fallback: manual ID input -->
-            <div style="margin-top:.75rem;display:flex;gap:.5rem;align-items:center">
-              <input [ngModel]="manualChatId()" (ngModelChange)="manualChatId.set($event)" placeholder="Telegram chat ID / username" style="flex:1" />
-              <button class="btn small" (click)="linkManual()">{{ i18n.t()('telegram.linkManual') }}</button>
-            </div>
           }
         </div>
 
@@ -167,7 +162,6 @@ export class PreferencesComponent {
   protected readonly prefs = signal<Preferences | null>(null);
   protected readonly saved = signal(false);
   protected telegramError = '';
-  protected manualChatId = signal('');
   telegramLinkBox = viewChild<ElementRef>('telegramLinkBox');
   private widgetInjectedFor = signal<string | null>(null);
   protected readonly mergeToken = signal<string | null>(null);
@@ -244,8 +238,8 @@ export class PreferencesComponent {
       const v = this.prefsRes.value();
       if (v) this.prefs.set(v);
     });
-    // Feedback from the OAuth link round-trip: /#/preferences?linked=google / ?error=...
-    // or a staged merge: /#/preferences?merge=<token>
+    // Feedback from the OAuth link round-trip: /#/preferences?link=<token> (to confirm
+    // with this session) / ?error=..., or a staged merge: /#/preferences?merge=<token>
     if (typeof window !== 'undefined') {
       const hashQuery = window.location.hash.includes('?')
         ? new URLSearchParams(window.location.hash.slice(window.location.hash.indexOf('?') + 1))
@@ -253,9 +247,12 @@ export class PreferencesComponent {
       const linked = hashQuery.get('linked');
       const err = hashQuery.get('error');
       const merge = hashQuery.get('merge');
-      if (linked || err || merge) {
+      const link = hashQuery.get('link');
+      if (linked || err || merge || link) {
         setTimeout(() => {
-          if (linked) {
+          if (link) {
+            this.confirmLink(link);
+          } else if (linked) {
             this.toast.show(this.i18n.t()('linked.success', { name: linked }), 'success');
             this.auth.linkedProviders.reload();
             this.prefsRes.reload();
@@ -311,17 +308,18 @@ export class PreferencesComponent {
     }
   }
 
-  async linkManual() {
-    const id = this.manualChatId().trim();
-    if (!id) return;
+  private async confirmLink(token: string) {
     try {
-      // bypass widget hash — direct via preferences (dev, localhost)
-      await this.preferencesService.update({ telegramChatId: id, notificationChannel: 'telegram' } as any);
-      this.prefs.update(p => p ? { ...p, telegramChatId: id, notificationChannel: 'telegram' as any } : p);
-      this.telegram.reload();
-      this.toast.show(this.i18n.t()('telegram.linked'), 'success');
+      const r = await this.auth.confirmLink(token);
+      if (r.merge) {
+        this.mergeToken.set(r.merge);
+      } else if (r.linked) {
+        this.toast.show(this.i18n.t()('linked.success', { name: r.linked }), 'success');
+        this.auth.linkedProviders.reload();
+        this.prefsRes.reload();
+      }
     } catch (e: any) {
-      this.telegramError = e?.error?.message || 'Link failed';
+      this.toast.show(this.i18n.t()('login.error', { msg: e?.message || 'Link failed' }), 'error');
     }
   }
 

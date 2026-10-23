@@ -115,31 +115,43 @@ export abstract class ArtifactListener<T extends string | number> {
       this.logger.debug(`[${this.ecoLabel}] skip already-known ${artifactId}`);
       return;
     }
-    await this.artifacts.addKnownVersions(this.ecosystem, artifactId, fresh.map((v) => v.version));
-
+    // Versions become known only once every follower got them: on failure they stay
+    // "fresh" and the next pass retries (events and deliveries are idempotent).
+    let failed = false;
     for (const f of followers) {
-      let current = f.currentVersion;
-      for (const { version, publishedAt } of fresh) {
-        if (isPrerelease(version) && !f.includePrereleases) {
-          this.logger.debug(`[${this.ecoLabel}] skip prerelease ${artifactId}@${version} user=${f.userId}`);
-          continue;
-        }
-        this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`);
-        await this.notifications.onNewVersion(
-          f.followedArtifactId,
-          f.userId,
-          this.ecosystem,
-          artifactId,
-          version,
-          publishedAt,
-        );
-        // currentVersion stays the highest version, a patch of an older line doesn't lower it
-        if (!current || compareVersions(version, current) > 0) current = version;
+      try {
+        await this.notifyFollower(f, artifactId, fresh);
+      } catch (e) {
+        failed = true;
+        this.logger.error(`[${this.ecoLabel}] notify ${artifactId} user=${f.userId} failed: ${(e as Error).message}`);
       }
-      if (current && current !== f.currentVersion) {
-        await this.artifacts.markNewVersion(f.followedArtifactId, current);
-        f.currentVersion = current;
+    }
+    if (failed) return;
+    await this.artifacts.addKnownVersions(this.ecosystem, artifactId, fresh.map((v) => v.version));
+  }
+
+  private async notifyFollower(f: FollowedEntry, artifactId: string, fresh: PublishedVersion[]) {
+    let current = f.currentVersion;
+    for (const { version, publishedAt } of fresh) {
+      if (isPrerelease(version) && !f.includePrereleases) {
+        this.logger.debug(`[${this.ecoLabel}] skip prerelease ${artifactId}@${version} user=${f.userId}`);
+        continue;
       }
+      this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`);
+      await this.notifications.onNewVersion(
+        f.followedArtifactId,
+        f.userId,
+        this.ecosystem,
+        artifactId,
+        version,
+        publishedAt,
+      );
+      // currentVersion stays the highest version, a patch of an older line doesn't lower it
+      if (!current || compareVersions(version, current) > 0) current = version;
+    }
+    if (current && current !== f.currentVersion) {
+      await this.artifacts.markNewVersion(f.followedArtifactId, current);
+      f.currentVersion = current;
     }
   }
 

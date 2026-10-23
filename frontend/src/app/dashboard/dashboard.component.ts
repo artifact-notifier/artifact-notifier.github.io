@@ -148,7 +148,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
                     <span class="event-pill">v{{ e.version }} <span class="muted">release {{ fmtSync(e.publishedAt) }}</span></span>
                     <span class="delivery-list">
                       @for (d of e.deliveries; track d.channel) {
-                        <span class="delivery-pill" [class.sent]="d.status==='SENT'" [class.pending]="d.status==='PENDING'" [title]="d.channel">
+                        <span class="delivery-pill" [class.sent]="d.status==='SENT'" [class.pending]="d.status==='PENDING' || d.status==='SENDING'" [title]="d.channel">
                           {{ d.channel==='telegram' ? '✈️' : '✉️' }} {{ d.channel }} {{ d.sentAt ? fmtSync(d.sentAt) : d.status }}
                         </span>
                       }

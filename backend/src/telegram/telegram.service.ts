@@ -1,6 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { Allow, IsNotEmpty, IsString } from 'class-validator';
 import { t } from '../i18n/notifications.i18n';
 
 function escapeHtml(str: string): string {
@@ -13,14 +14,18 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#39;');
 }
 
-export interface TelegramAuthData {
-  id: string;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: string;
-  hash: string;
+/**
+ * Telegram Login Widget payload. Fields are only whitelisted (@Allow), not
+ * coerced: the HMAC check signs them exactly as received.
+ */
+export class TelegramAuthData {
+  @IsNotEmpty() id!: string;
+  @Allow() first_name?: string;
+  @Allow() last_name?: string;
+  @Allow() username?: string;
+  @Allow() photo_url?: string;
+  @IsNotEmpty() auth_date!: string;
+  @IsString() @IsNotEmpty() hash!: string;
 }
 
 @Injectable()

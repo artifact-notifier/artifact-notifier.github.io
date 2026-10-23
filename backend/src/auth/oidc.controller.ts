@@ -25,6 +25,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Public } from './decorators';
 import { CurrentUser, AuthedUser } from './decorators';
 import {JwtAuthGuard} from "./jwt-auth.guard";
+import { apiPublicUrl, frontendUrl, SESSION_COOKIE, sessionCookieOptions, signSession } from './session';
 
 @Controller('auth')
 export class OidcController {
@@ -47,7 +48,7 @@ export class OidcController {
 
   @Get('logout')
   logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', this.cookieOptions());
+    res.clearCookie(SESSION_COOKIE, sessionCookieOptions(this.config));
     return { success: true };
   }
 
@@ -88,6 +89,21 @@ export class OidcController {
     const m = this.oidc.consumeMerge(body?.token || '');
     if (!m || m.toUserId !== user.sub) throw new UnauthorizedException('Invalid or expired merge request');
     return this.users.mergeAccounts(m.toUserId, m.fromUserId);
+  }
+
+  @Post('link/confirm')
+  @UseGuards(JwtAuthGuard)
+  async linkConfirm(@CurrentUser() user: AuthedUser, @Body() body: { token: string }) {
+    const p = this.oidc.consumePendingLink(body?.token || '', user.sub);
+    if (!p) throw new UnauthorizedException('Invalid or expired link request');
+    const owner = await this.users.findIdentityOwner(p.profile);
+    if (owner && owner !== user.sub) {
+      // Identity belongs to a *different* account: stage a merge
+      // (absorption) pending explicit user confirmation.
+      return { merge: this.oidc.createMergeToken(user.sub, owner, p.profile.provider) };
+    }
+    await this.users.linkProvider(user.sub, p.profile);
+    return { linked: p.profile.provider };
   }
 
   @Delete('account')
@@ -212,29 +228,16 @@ export class OidcController {
         });
       }
       if (verifier.linkUserId) {
-        const owner = await this.users.findIdentityOwner(profile);
-        if (owner && owner !== verifier.linkUserId) {
-          // Identity belongs to a *different* account: stage a merge
-          // (absorption) pending explicit user confirmation.
-          const mergeToken = this.oidc.createMergeToken(verifier.linkUserId, owner, provider);
-          return res.redirect(`${hashPrefix}/preferences?merge=${mergeToken}`);
-        }
-        await this.users.linkProvider(verifier.linkUserId, profile);
-        // Link flow: keep the current session, just confirm the new identity.
-        return res.redirect(`${hashPrefix}/preferences?linked=${encodeURIComponent(provider)}`);
+        // Link flow: nothing is attached yet, the logged-in session must confirm
+        // (POST link/confirm) so a link URL opened by someone else attaches nothing.
+        const linkToken = this.oidc.createPendingLink(verifier.linkUserId, profile);
+        return res.redirect(`${hashPrefix}/preferences?link=${linkToken}`);
       }
       const user = await this.users.findOrCreateFromProfile(profile);
       if (!user) throw new UnauthorizedException('Account not found after linking');
 
-      const token = this.jwt.sign(
-        { sub: user.id, email: user.email, provider: user.provider },
-        {
-          secret: this.config.get<string>('JWT_SECRET'),
-          expiresIn: (this.config.get<string>('JWT_EXPIRES_IN') || '7d') as any,
-        },
-      );
-
-      res.cookie('access_token', token, this.cookieOptions());
+      const token = signSession(this.jwt, this.config, user);
+      res.cookie(SESSION_COOKIE, token, sessionCookieOptions(this.config));
 
       // Query inside the fragment (never the URL fragment `#access_token=`):
       // stays client-side and is parsed by the Angular router as queryParam.
@@ -249,43 +252,10 @@ export class OidcController {
   }
 
   private frontendUrl(): string {
-    const raw =
-      this.config.get<string>('FRONTEND_URL')?.split(',')[0]?.trim() ||
-      'http://localhost:4200';
-    return raw.replace(/\/+$/, '');
+    return frontendUrl(this.config);
   }
 
   private apiPublicUrl(): string {
-    const raw =
-      this.config.get<string>('BACKEND_PUBLIC_URL')?.trim() ||
-      this.frontendUrl().split(',')[0]?.trim() ||
-      'http://localhost:4200';
-    return raw.replace(/\/+$/, '');
-  }
-
-  /**
-   * Session cookie carried by the API.
-   * Same-origin: Lax is enough. Cross-origin (frontend on another domain):
-   * SameSite=None + Secure are required, otherwise the browser rejects the cookie.
-   */
-  private cookieOptions(): { httpOnly: boolean; sameSite: 'lax' | 'none'; secure: boolean; maxAge: number; path: string } {
-    const crossSite = this.isCrossSite();
-    return {
-      httpOnly: true,
-      sameSite: crossSite ? 'none' : 'lax',
-      secure: this.config.get<string>('NODE_ENV') === 'production' || crossSite,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    };
-  }
-
-  private isCrossSite(): boolean {
-    try {
-      const front = new URL(this.frontendUrl().split(',')[0].trim());
-      const api = new URL(this.apiPublicUrl());
-      return front.origin !== api.origin;
-    } catch {
-      return false;
-    }
+    return apiPublicUrl(this.config);
   }
 }

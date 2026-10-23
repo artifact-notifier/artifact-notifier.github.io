@@ -5,6 +5,8 @@ import { Ecosystem } from '@prisma/client';
 import { fetchAllVersions } from './version-sources';
 import { pickCurrentVersion } from './versions';
 
+const MAX_FOLLOWS_PER_USER = 200;
+
 @Injectable()
 export class ArtifactsService {
   constructor(private readonly prisma: PrismaService, private readonly config: ConfigService) {}
@@ -28,6 +30,9 @@ export class ArtifactsService {
       where: { userId_ecosystem_coordinates: { userId, ecosystem, coordinates } },
     });
     if (existing) return existing;
+    if ((await this.prisma.followedArtifact.count({ where: { userId } })) >= MAX_FOLLOWS_PER_USER) {
+      throw new BadRequestException(`At most ${MAX_FOLLOWS_PER_USER} followed artifacts`);
+    }
 
     const version = await this.resolveCurrentVersion(userId, ecosystem, coordinates);
     return this.prisma.followedArtifact.create({

@@ -6,10 +6,25 @@ import { ArtifactsService } from './artifacts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ConfigService } from '@nestjs/config';
 import { Ecosystem } from '@prisma/client';
+import { IsString, MaxLength } from 'class-validator';
 
-interface SimulateDto {
-  coordinates: string;
-  version: string;
+class SimulateDto {
+  @IsString()
+  @MaxLength(256)
+  coordinates!: string;
+
+  @IsString()
+  @MaxLength(64)
+  version!: string;
+}
+
+class BumpDto {
+  @IsString()
+  id!: string;
+
+  @IsString()
+  @MaxLength(64)
+  version!: string;
 }
 
 @Controller('artifacts/test')
@@ -68,7 +83,7 @@ export class TestArtifactsController {
   }
 
   @Post('bump')
-  async bump(@CurrentUser() user: AuthedUser, @Body() dto: { id: string; version: string }) {
+  async bump(@CurrentUser() user: AuthedUser, @Body() dto: BumpDto) {
     this.assertDevEnabled();
     const fa = await this.prisma.followedArtifact.findFirst({
       where: { id: dto.id, userId: user.sub, ecosystem: Ecosystem.TEST },

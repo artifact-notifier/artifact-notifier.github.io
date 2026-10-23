@@ -100,6 +100,9 @@ model NotificationDelivery {
   userId    String
   status    DeliveryStatus    @default(PENDING)
   channel   String            @default("email")
+  // Failed sends go back to PENDING with a growing delay, up to a max number of attempts
+  attempts      Int           @default(0)
+  nextAttemptAt DateTime?
   sentAt    DateTime?
   createdAt DateTime          @default(now())
 
@@ -128,6 +131,8 @@ enum NotificationMode {
 
 enum DeliveryStatus {
   PENDING
+  // claimed by a sender (immediate or digest), so a delivery is never sent twice
+  SENDING
   SENT
   FAILED
 }

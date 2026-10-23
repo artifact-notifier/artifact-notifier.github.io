@@ -34,8 +34,11 @@ export class TelegramService {
       body: JSON.stringify(data),
     });
     if (!res.ok) throw await res.json().catch(() => ({ message: 'Telegram verify failed' }));
+    const { token } = await res.json();
     this.status.reload();
-    this.auth.refresh();
+    // The session cookie is third-party when cross-origin: keep the Bearer token too
+    if (token) this.auth.acceptToken(token);
+    else this.auth.refresh();
   }
 
   async link(data: any): Promise<void> {

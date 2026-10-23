@@ -35,10 +35,6 @@ class UpdatePreferencesDto {
   notificationChannel?: string;
 
   @IsOptional()
-  @IsString()
-  telegramChatId?: string;
-
-  @IsOptional()
   @IsBoolean()
   includePrereleases?: boolean;
 }
