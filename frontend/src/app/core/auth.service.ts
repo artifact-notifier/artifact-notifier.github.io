@@ -31,6 +31,7 @@ export class AuthService {
   );
 
   readonly user = this._user.asReadonly();
+  readonly isAuthLoading = computed(() => this.me.isLoading());
   /** Fallback Bearer for cross-origin (third-party cookies blocked). */
   readonly token = this._token.asReadonly();
 
@@ -54,11 +55,14 @@ export class AuthService {
         }
       }
     }
-    effect(() => {
-      const v = this.me.value();
-      if (v) this._user.set(v);
-      else if (this.me.error()) this._user.set(null);
-    });
+    effect(() => this.syncUser());
+  }
+
+  /** Copies the /me result into `user` (also called by the guard, which can't rely on effect timing). */
+  syncUser() {
+    const v = this.me.value();
+    if (v) this._user.set(v);
+    else if (this.me.error()) this._user.set(null);
   }
 
   private extractTokenFromUrl(loc: Location): string | null {

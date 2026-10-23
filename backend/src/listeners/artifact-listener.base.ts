@@ -125,28 +125,13 @@ export abstract class ArtifactListener<T extends string | number> {
           continue;
         }
         this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`);
-        await this.prisma.artifactVersionEvent
-          .upsert({
-            where: {
-              followedArtifactId_version: { followedArtifactId: f.followedArtifactId, version },
-            },
-            create: {
-              followedArtifactId: f.followedArtifactId,
-              ecosystem: this.ecosystem,
-              coordinates: artifactId,
-              version,
-              publishedAt: publishedAt ?? new Date(),
-            },
-            update: {},
-          })
-          .catch(() => undefined);
-
         await this.notifications.onNewVersion(
           f.followedArtifactId,
           f.userId,
           this.ecosystem,
           artifactId,
           version,
+          publishedAt,
         );
         // currentVersion stays the highest version, a patch of an older line doesn't lower it
         if (!current || compareVersions(version, current) > 0) current = version;

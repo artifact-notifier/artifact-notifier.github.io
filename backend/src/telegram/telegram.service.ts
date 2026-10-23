@@ -3,6 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { t } from '../i18n/notifications.i18n';
 
+function escapeHtml(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export interface TelegramAuthData {
   id: string;
   first_name?: string;
@@ -85,13 +95,19 @@ export class TelegramService {
   }
 
   formatImmediate(artifact: { coordinates: string; ecosystem: string; version: string }, locale?: string): string {
-    return t(locale, 'telegramImmediate', artifact.ecosystem, artifact.coordinates, artifact.version);
+    return t(
+      locale,
+      'telegramImmediate',
+      escapeHtml(artifact.ecosystem),
+      escapeHtml(artifact.coordinates),
+      escapeHtml(artifact.version),
+    );
   }
 
   formatDigest(items: { coordinates: string; ecosystem: string; version: string }[], locale?: string): string {
     let txt = `${t(locale, 'telegramDigestHeader', items.length)}\n\n`;
     for (const it of items) {
-      txt += `• ${it.ecosystem} <code>${it.coordinates}</code> → <b>${it.version}</b>\n`;
+      txt += `• ${escapeHtml(it.ecosystem)} <code>${escapeHtml(it.coordinates)}</code> → <b>${escapeHtml(it.version)}</b>\n`;
     }
     return txt;
   }
