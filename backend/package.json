@@ -91,6 +91,8 @@
     ]
   },
   "overrides": {
-    "deepmerge-ts": "^8.0.2"
+    "deepmerge-ts": "^8.0.2",
+    "multer": "^2.5.0",
+    "uri-js": "npm:uri-js-replace@1.0.1"
   }
 }
