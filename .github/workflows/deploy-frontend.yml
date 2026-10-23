@@ -54,7 +54,7 @@ jobs:
             BASE_HREF="/${REPO}/"
           fi
           echo "Base href: $BASE_HREF"
-          npx ng build --base-href "$BASE_HREF"
+          node_modules/.bin/ng build --base-href "$BASE_HREF"
 
       - name: Inject API URL into assets/api-config.json
         run: |
