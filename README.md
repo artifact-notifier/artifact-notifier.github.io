@@ -146,5 +146,5 @@ filesystem and no capabilities; migrations are applied at startup.
 
 ```bash
 # deploy a given image tag (backs up the database first); rollback = previous tag
-ssh artifact-notifier /opt/artifact-notifier/deploy.sh <short-sha>
+ssh artifact-notifier sudo /opt/artifact-notifier/deploy.sh <short-sha>
 ```
