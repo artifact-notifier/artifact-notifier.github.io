@@ -28,14 +28,16 @@ describe('PreferencesService', () => {
 
   it('loads preferences and constraints only once logged in', () => {
     TestBed.tick();
-    http.expectNone('/api/preferences');
+    expect(http.match('/api/preferences')).toHaveLength(0);
 
     user.set({ id: 'u1' });
     TestBed.tick();
-    http.expectOne('/api/preferences').flush({ userId: 'u1' });
-    http
-      .expectOne('/api/preferences/constraints')
-      .flush({ immediateChannels: ['telegram'], mailMinDigestMinutes: 1440 });
+    const prefs = http.match('/api/preferences');
+    const constraints = http.match('/api/preferences/constraints');
+    expect(prefs).toHaveLength(1);
+    expect(constraints).toHaveLength(1);
+    prefs[0].flush({ userId: 'u1' });
+    constraints[0].flush({ immediateChannels: ['telegram'], mailMinDigestMinutes: 1440 });
     http.verify();
   });
 
