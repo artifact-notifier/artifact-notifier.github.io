@@ -44,6 +44,8 @@ model UserPreferences {
   locale                String            @default("fr")
   theme                 String            @default("system")
   notificationChannel   String            @default("email")
+  // Notify alpha/beta/milestone/RC/SNAPSHOT versions too
+  includePrereleases    Boolean           @default(false)
   telegramChatId        String?           @unique
   telegramUsername    String?
   lastDigestSentAt      DateTime?
@@ -79,6 +81,17 @@ model ArtifactVersionEvent {
   deliveries          NotificationDelivery[]
 
   @@unique([followedArtifactId, version])
+}
+
+// Versions already seen per artifact, shared by all followers: a version absent
+// from this set is new (whatever its position relative to the current one).
+model KnownVersion {
+  ecosystem   Ecosystem
+  coordinates String
+  version     String
+  createdAt   DateTime  @default(now())
+
+  @@id([ecosystem, coordinates, version])
 }
 
 model NotificationDelivery {

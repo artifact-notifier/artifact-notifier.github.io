@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
-import { IsEmail, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser, AuthedUser } from './decorators';
@@ -37,6 +37,10 @@ class UpdatePreferencesDto {
   @IsOptional()
   @IsString()
   telegramChatId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  includePrereleases?: boolean;
 }
 
 @Controller('preferences')

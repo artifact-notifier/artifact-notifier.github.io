@@ -56,6 +56,12 @@ import { TelegramService } from '../core/telegram.service';
           <p class="muted" style="font-size:.8rem">{{ i18n.t()('preferences.interval.mailMin') }}</p>
         }
 
+        <label style="display:flex; align-items:center; gap:.5rem; margin-top:1rem;">
+          <input type="checkbox" [ngModel]="p.includePrereleases" (ngModelChange)="update('includePrereleases', $event)" />
+          {{ i18n.t()('preferences.prereleases') }}
+        </label>
+        <p class="muted" style="font-size:.8rem">{{ i18n.t()('preferences.prereleases.hint') }}</p>
+
         <div class="card" style="margin-top:1rem;background:var(--hover)">
           <h3 style="margin:0 0 .5rem">📲 {{ i18n.t()('telegram.title') }}</h3>
           @if (telegram.linked()) {

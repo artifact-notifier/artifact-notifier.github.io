@@ -12,6 +12,7 @@ export interface Preferences {
   theme: 'light' | 'dark' | 'system';
   notificationChannel: 'email' | 'telegram' | 'both';
   telegramChatId?: string | null;
+  includePrereleases: boolean;
 }
 
 export interface NotificationConstraints {

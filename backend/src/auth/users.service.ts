@@ -391,6 +391,7 @@ export class UsersService {
       theme?: string;
       notificationChannel?: string;
       telegramChatId?: string;
+      includePrereleases?: boolean;
     },
   ) {
     const existing = await this.prisma.userPreferences.findUnique({ where: { userId } });
@@ -430,6 +431,7 @@ export class UsersService {
     if (dto.notificationChannel && ['email', 'telegram', 'both'].includes(dto.notificationChannel))
       data.notificationChannel = dto.notificationChannel;
     if (dto.telegramChatId !== undefined) data.telegramChatId = dto.telegramChatId;
+    if (dto.includePrereleases !== undefined) data.includePrereleases = dto.includePrereleases;
 
     return this.prisma.userPreferences.upsert({
       where: { userId },

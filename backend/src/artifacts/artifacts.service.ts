@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Ecosystem } from '@prisma/client';
+import { fetchAllVersions } from './version-sources';
+import { pickCurrentVersion } from './versions';
 
 @Injectable()
 export class ArtifactsService {
@@ -27,7 +29,7 @@ export class ArtifactsService {
     });
     if (existing) return existing;
 
-    const version = await this.resolveCurrentVersion(ecosystem, coordinates);
+    const version = await this.resolveCurrentVersion(userId, ecosystem, coordinates);
     return this.prisma.followedArtifact.create({
       data: { userId, ecosystem, coordinates, currentVersion: version },
     });
@@ -109,41 +111,21 @@ export class ArtifactsService {
     }
   }
 
+  /**
+   * Highest version (stable unless the user wants prereleases). Also records every
+   * existing version as known, so that only later publications trigger notifications.
+   */
   private async resolveCurrentVersion(
+    userId: string,
     ecosystem: Ecosystem,
     coordinates: string,
   ): Promise<string | null> {
+    if (ecosystem === Ecosystem.TEST) return '1.0.0';
     try {
-      switch (ecosystem) {
-        case 'NPM': {
-          const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(coordinates)}`, {
-            signal: AbortSignal.timeout(8000),
-          });
-          const json = await res.json();
-          return json['dist-tags']?.latest ?? null;
-        }
-        case 'MAVEN': {
-          const res = await fetch('https://central.sonatype.com/api/internal/browse/components', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ page: 0, size: 1, searchTerm: coordinates, filter: [] }),
-            signal: AbortSignal.timeout(8000),
-          });
-          const json = await res.json();
-          return json?.components?.[0]?.latestVersionInfo?.version ?? null;
-        }
-        case 'PYPI': {
-          const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(coordinates)}/json`, {
-            signal: AbortSignal.timeout(8000),
-          });
-          const json = await res.json();
-          return json?.info?.version ?? null;
-        }
-        case 'TEST':
-          return '1.0.0';
-        default:
-          return null;
-      }
+      const versions = (await fetchAllVersions(ecosystem, coordinates))?.map((v) => v.version) ?? [];
+      await this.addKnownVersions(ecosystem, coordinates, versions);
+      const prefs = await this.prisma.userPreferences.findUnique({ where: { userId } });
+      return pickCurrentVersion(versions, prefs?.includePrereleases ?? false);
     } catch {
       return null;
     }
@@ -155,15 +137,51 @@ export class ArtifactsService {
     // coordinates -> list of followedArtifact ids (one per user)
     const rows = await this.prisma.followedArtifact.findMany({
       where: { ecosystem },
-      select: { id: true, coordinates: true, currentVersion: true, userId: true },
+      select: {
+        id: true,
+        coordinates: true,
+        currentVersion: true,
+        userId: true,
+        user: { select: { preferences: { select: { includePrereleases: true } } } },
+      },
     });
-    const map = new Map<string, { followedArtifactId: string; userId: string; currentVersion: string | null }[]>();
+    const map = new Map<
+      string,
+      { followedArtifactId: string; userId: string; currentVersion: string | null; includePrereleases: boolean }[]
+    >();
     for (const r of rows) {
       const arr = map.get(r.coordinates) || [];
-      arr.push({ followedArtifactId: r.id, userId: r.userId, currentVersion: r.currentVersion });
+      arr.push({
+        followedArtifactId: r.id,
+        userId: r.userId,
+        currentVersion: r.currentVersion,
+        includePrereleases: r.user.preferences?.includePrereleases ?? false,
+      });
       map.set(r.coordinates, arr);
     }
     return map as any;
+  }
+
+  async getKnownVersions(ecosystem: Ecosystem, coordinates: string): Promise<Set<string>> {
+    const rows = await this.prisma.knownVersion.findMany({
+      where: { ecosystem, coordinates },
+      select: { version: true },
+    });
+    return new Set(rows.map((r) => r.version));
+  }
+
+  async addKnownVersions(ecosystem: Ecosystem, coordinates: string, versions: string[]) {
+    if (!versions.length) return;
+    // SQLite has no createMany skipDuplicates: upsert in one transaction
+    await this.prisma.$transaction(
+      [...new Set(versions)].map((version) =>
+        this.prisma.knownVersion.upsert({
+          where: { ecosystem_coordinates_version: { ecosystem, coordinates, version } },
+          create: { ecosystem, coordinates, version },
+          update: {},
+        }),
+      ),
+    );
   }
 
   async markNewVersion(followedArtifactId: string, version: string) {

@@ -3,6 +3,8 @@ import { Ecosystem } from '@prisma/client';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PublishedVersion } from '../artifacts/version-sources';
+import { compareVersions, isPrerelease } from '../artifacts/versions';
 
 export interface ArtifactId {
   id: string;
@@ -16,6 +18,7 @@ export interface FollowedEntry {
   followedArtifactId: string;
   userId: string;
   currentVersion: string | null;
+  includePrereleases: boolean;
 }
 
 /**
@@ -74,48 +77,84 @@ export abstract class ArtifactListener<T extends string | number> {
     }
   }
 
+  /** Single publication event (PyPI feed): see handleVersions. */
   protected async handleArtifact(artifactId: string, version: string, publishedAt?: Date) {
+    await this.handleVersions(artifactId, [{ version, publishedAt }], false);
+  }
+
+  /**
+   * Notifies every version never seen before for this artifact, including patches
+   * of older lines. `complete` means `versions` is the full list of the artifact:
+   * when nothing is known yet, it is recorded silently as a baseline.
+   */
+  protected handleVersions(artifactId: string, versions: PublishedVersion[], complete: boolean): Promise<void> {
+    // Serialized: the poll and the sweep may diff the same artifact concurrently.
+    const run = this.queue.then(() => this.doHandleVersions(artifactId, versions, complete));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private queue: Promise<void> = Promise.resolve();
+
+  private async doHandleVersions(artifactId: string, versions: PublishedVersion[], complete: boolean) {
     const followers = this.followedMap.get(artifactId);
     if (!followers || followers.length === 0) {
-      this.logger.debug(`[${this.ecoLabel}] skip not-followed ${artifactId}@${version}`);
+      this.logger.debug(`[${this.ecoLabel}] skip not-followed ${artifactId}`);
       return;
     }
 
+    const known = await this.artifacts.getKnownVersions(this.ecosystem, artifactId);
+    if (complete && known.size === 0) {
+      this.logger.log(`[${this.ecoLabel}] baseline ${artifactId}: ${versions.length} versions recorded, no notification`);
+      await this.artifacts.addKnownVersions(this.ecosystem, artifactId, versions.map((v) => v.version));
+      return;
+    }
+    const fresh = [...new Map(versions.filter((v) => !known.has(v.version)).map((v) => [v.version, v])).values()]
+      .sort((a, b) => compareVersions(a.version, b.version));
+    if (fresh.length === 0) {
+      this.logger.debug(`[${this.ecoLabel}] skip already-known ${artifactId}`);
+      return;
+    }
+    await this.artifacts.addKnownVersions(this.ecosystem, artifactId, fresh.map((v) => v.version));
+
     for (const f of followers) {
-      if (f.currentVersion && f.currentVersion === version) {
-        this.logger.debug(`[${this.ecoLabel}] skip already-known ${artifactId}@${version} user=${f.userId}`);
-        continue;
-      }
-      if (f.currentVersion && this.isLower(version, f.currentVersion)) {
-        this.logger.debug(`[${this.ecoLabel}] skip lower ${artifactId}@${version} < ${f.currentVersion} user=${f.userId}`);
-        continue;
-      }
-      this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (was ${f.currentVersion ?? 'none'})`);
+      let current = f.currentVersion;
+      for (const { version, publishedAt } of fresh) {
+        if (isPrerelease(version) && !f.includePrereleases) {
+          this.logger.debug(`[${this.ecoLabel}] skip prerelease ${artifactId}@${version} user=${f.userId}`);
+          continue;
+        }
+        this.logger.log(`[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`);
+        await this.prisma.artifactVersionEvent
+          .upsert({
+            where: {
+              followedArtifactId_version: { followedArtifactId: f.followedArtifactId, version },
+            },
+            create: {
+              followedArtifactId: f.followedArtifactId,
+              ecosystem: this.ecosystem,
+              coordinates: artifactId,
+              version,
+              publishedAt: publishedAt ?? new Date(),
+            },
+            update: {},
+          })
+          .catch(() => undefined);
 
-      await this.artifacts.markNewVersion(f.followedArtifactId, version);
-      await this.prisma.artifactVersionEvent
-        .upsert({
-          where: {
-            followedArtifactId_version: { followedArtifactId: f.followedArtifactId, version },
-          },
-          create: {
-            followedArtifactId: f.followedArtifactId,
-            ecosystem: this.ecosystem,
-            coordinates: artifactId,
-            version,
-            publishedAt: publishedAt ?? new Date(),
-          },
-          update: {},
-        })
-        .catch(() => undefined);
-
-      await this.notifications.onNewVersion(
-        f.followedArtifactId,
-        f.userId,
-        this.ecosystem,
-        artifactId,
-        version,
-      );
+        await this.notifications.onNewVersion(
+          f.followedArtifactId,
+          f.userId,
+          this.ecosystem,
+          artifactId,
+          version,
+        );
+        // currentVersion stays the highest version, a patch of an older line doesn't lower it
+        if (!current || compareVersions(version, current) > 0) current = version;
+      }
+      if (current && current !== f.currentVersion) {
+        await this.artifacts.markNewVersion(f.followedArtifactId, current);
+        f.currentVersion = current;
+      }
     }
   }
 
@@ -135,23 +174,6 @@ export abstract class ArtifactListener<T extends string | number> {
     if (!row) return undefined;
     const n = Number.parseInt(row.value, 10);
     return (isNaN(n) ? row.value : n) as T;
-  }
-
-  // best-effort semver-ish comparison; returns true if `a` < `b`
-  private isLower(a: string, b: string): boolean {
-    try {
-      const pa = a.split('.').map(Number);
-      const pb = b.split('.').map(Number);
-      for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-        const x = pa[i] || 0;
-        const y = pb[i] || 0;
-        if (x < y) return true;
-        if (x > y) return false;
-      }
-      return false;
-    } catch {
-      return false;
-    }
   }
 
   abstract sync(): Promise<void>;

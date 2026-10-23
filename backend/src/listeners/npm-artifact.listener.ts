@@ -5,6 +5,7 @@ import { Ecosystem } from '@prisma/client';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { fetchNpmVersions, PublishedVersion } from '../artifacts/version-sources';
 
 const POLLING_TIME_IN_MS = 60 * 1000;
 const CHANGES_LIMIT = 500;
@@ -122,14 +123,14 @@ export class NpmArtifactListener
           continue;
         }
         this.logger.debug(`[NPM] checking followed ${change.id} seq=${change.seq}`);
-        const info = await this.resolveLatestWithTime(change.id);
-        if (info) {
-          this.logger.debug(`[NPM] resolved ${change.id}@${info.version}`);
-          if (info.time) {
-            const t = new Date(info.time).getTime();
-            if (!isNaN(t) && (latestFollowedTime === null || t > latestFollowedTime)) latestFollowedTime = t;
+        const versions = await this.resolveVersions(change.id);
+        if (versions?.length) {
+          this.logger.debug(`[NPM] resolved ${change.id}: ${versions.length} versions`);
+          for (const v of versions) {
+            const t = v.publishedAt?.getTime();
+            if (t && !isNaN(t) && (latestFollowedTime === null || t > latestFollowedTime)) latestFollowedTime = t;
           }
-          await this.handleArtifact(change.id, info.version, info.time ? new Date(info.time) : undefined);
+          await this.handleVersions(change.id, versions, true);
         } else {
           this.logger.debug(`[NPM] no version for ${change.id}`);
         }
@@ -169,18 +170,9 @@ export class NpmArtifactListener
     }
   }
 
-  private async resolveLatestWithTime(pkg: string): Promise<{ version: string; time: string | null } | null> {
+  private async resolveVersions(pkg: string): Promise<PublishedVersion[] | null> {
     try {
-      const encoded = encodeURIComponent(pkg);
-      const res = await fetch(`https://registry.npmjs.org/${encoded}`, {
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!res.ok) return null;
-      const json = await res.json();
-      const version = json['dist-tags']?.latest ?? null;
-      if (!version) return null;
-      const time = json.time?.[version] ?? null;
-      return { version, time };
+      return await fetchNpmVersions(pkg);
     } catch {
       return null;
     }

@@ -5,11 +5,15 @@ import { Ecosystem } from '@prisma/client';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { fetchMavenVersions, PublishedVersion } from '../artifacts/version-sources';
 
 const NB_ROWS_PER_PAGE = 20;
 const POLLING_TIME_IN_MS = 60 * 1000;
 const CENTRAL_BROWSE_URL = 'https://central.sonatype.com/api/internal/browse/components';
 const MAX_PAGE = 499; // page 500 (size 20 = 10000 artifacts) returns 500, API limit
+// Safety net: the browse API only exposes the latest version of a component, and
+// repo1 metadata may lag behind it, so followed artifacts are also re-checked periodically.
+const SWEEP_TIME_IN_MS = 30 * 60 * 1000;
 
 interface MavenDoc {
   id: string;
@@ -33,6 +37,7 @@ export class MavenArtifactListener
   readonly ecosystem = Ecosystem.MAVEN;
   defaultSequence = Date.now();
   private running = false;
+  private sweeping = false;
 
   constructor(
     artifacts: ArtifactsService,
@@ -65,6 +70,37 @@ export class MavenArtifactListener
     } finally {
       this.running = false;
     }
+  }
+
+  @Interval(SWEEP_TIME_IN_MS)
+  async sweep() {
+    if (this.sweeping) return;
+    this.sweeping = true;
+    try {
+      const coordinates = [...this.followedMap.keys()];
+      this.logger.log(`[Maven] sweep start: ${coordinates.length} followed artifacts`);
+      for (const c of coordinates) await this.checkVersions(c);
+      this.logger.log(`[Maven] sweep done`);
+    } finally {
+      this.sweeping = false;
+    }
+  }
+
+  /** Diffs the full version list (maven-metadata.xml) of a followed artifact against the known versions. */
+  private async checkVersions(coordinates: string, latest?: PublishedVersion) {
+    let versions: PublishedVersion[] | null = null;
+    try {
+      versions = await fetchMavenVersions(coordinates);
+    } catch (e) {
+      this.logger.warn(`[Maven] metadata fetch failed for ${coordinates}: ${(e as Error).message}`);
+    }
+    if (!versions) {
+      if (latest) await this.handleVersions(coordinates, [latest], false);
+      return;
+    }
+    // metadata may not list the latest version yet, and doesn't carry its date
+    if (latest) versions = [...versions.filter((v) => v.version !== latest.version), latest];
+    await this.handleVersions(coordinates, versions, true);
   }
 
   private async getSince(): Promise<void> {
@@ -151,7 +187,8 @@ export class MavenArtifactListener
     artifacts.reverse();
     for (const doc of artifacts) {
       const coordinates = `${doc.g}:${doc.a}`;
-      await this.handleArtifact(coordinates, doc.latestVersion, new Date(doc.timestamp));
+      if (!this.followedMap.has(coordinates)) continue;
+      await this.checkVersions(coordinates, { version: doc.latestVersion, publishedAt: new Date(doc.timestamp) });
     }
     // Even when truncated, advance the sequence with what we have to avoid looping forever
     if (artifacts.length > 0) {
