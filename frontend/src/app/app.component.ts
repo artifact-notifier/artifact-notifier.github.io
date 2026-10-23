@@ -29,7 +29,12 @@ import { ToastComponent } from './core/toast.component';
         </a>
         <span class="user">{{ u.name || u.email }}</span>
         <button class="btn secondary small" (click)="logout()" [attr.aria-label]="i18n.t()('nav.logout')" [title]="i18n.t()('nav.logout')">
-          @if (narrow()) { ⏻ } @else { {{ i18n.t()('nav.logout') }} }
+          @if (narrow()) {
+            <!-- inline SVG: the ⏻ glyph is missing from most mobile fonts -->
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" />
+            </svg>
+          } @else { {{ i18n.t()('nav.logout') }} }
         </button>
       }
     </nav>
@@ -46,6 +51,7 @@ import { ToastComponent } from './core/toast.component';
     @media (max-width: 900px){ .user{display:none} }
     @media (max-width: 640px){ .brand{font-size:1rem} }
     .small{padding:.35rem .7rem;font-size:.85rem;white-space:nowrap;flex-shrink:0}
+    .icon{width:1.1em;height:1.1em;display:block}
     .lang-switch select{padding:.3rem;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#fff}
     .theme-toggle{flex-shrink:0;background:transparent;border:1px solid #374151;border-radius:6px;padding:.3rem .5rem;font-size:1rem;line-height:1;cursor:pointer}
     .theme-toggle:hover{background:#1f2937}
