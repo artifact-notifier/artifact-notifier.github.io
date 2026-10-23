@@ -17,31 +17,29 @@
     "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --coverage"
   },
   "dependencies": {
-    "@nestjs-modules/mailer": "^2.0.2",
-    "@nestjs/common": "^12.0.0",
-    "@nestjs/config": "^12.0.0",
-    "@nestjs/core": "^12.0.0",
-    "@nestjs/jwt": "^12.0.0",
-    "@nestjs/platform-express": "^12.0.0",
-    "@nestjs/schedule": "^12.0.0",
-    "@prisma/client": "^6.0.0",
+    "@nestjs/common": "12.2.0",
+    "@nestjs/config": "12.0.1",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/jwt": "12.0.3",
+    "@nestjs/platform-express": "12.2.0",
+    "@nestjs/schedule": "12.0.2",
+    "@prisma/client": "^6.19.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
-    "eventsource": "^3.0.5",
     "handlebars": "^4.7.8",
     "joi": "^18.0.0",
-    "nodemailer": "^8.0.5",
+    "nodemailer": "10.2.1",
     "openid-client": "^6.0.0",
-    "prisma": "^6.0.0",
+    "prisma": "^6.19.3",
     "reflect-metadata": "^0.2.2",
     "rss-parser": "^3.13.0",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@nestjs/cli": "^12.0.0",
-    "@nestjs/schematics": "^12.0.0",
+    "@nestjs/cli": "12.0.10",
+    "@nestjs/schematics": "12.0.10",
     "@nestjs/testing": "12.2.0",
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^5.0.0",
@@ -83,12 +81,16 @@
     "collectCoverageFrom": [
       "src/**/*.ts",
       "!src/main.ts",
-      "!src/**/*.module.ts"
+      "!src/**/*.module.ts",
+      "!src/i18n/**"
     ],
     "coverageDirectory": "coverage",
     "coverageReporters": [
       "text-summary",
       "lcov"
     ]
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2"
   }
 }
