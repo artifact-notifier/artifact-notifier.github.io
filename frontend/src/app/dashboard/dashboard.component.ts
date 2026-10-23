@@ -179,8 +179,8 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
   styles: `
     .add-card{padding:1rem 1.25rem}
     .add-card h3{margin:0 0 .75rem;font-size:1rem;font-weight:600}
-    .add-row{display:flex;gap:.6rem;align-items:stretch}
-    .search-wrap{position:relative;flex:1;min-width:220px;display:flex;align-items:center}
+    .add-row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:stretch}
+    .search-wrap{position:relative;flex:1 1 220px;min-width:0;display:flex;align-items:center}
     .search-input{width:100%;height:38px;padding:0 2rem 0 .75rem;border:1px solid var(--border);border-radius:8px;background:var(--input-bg);color:var(--text);font-size:.9rem;box-sizing:border-box}
     .search-input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
     .spinner{position:absolute;right:.6rem;width:16px;height:16px;border:2px solid var(--border);border-top-color:#2563eb;border-radius:50%;animation:spin .6s linear infinite}

@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth.service';
 import { I18nService } from './core/i18n.service';
@@ -17,18 +17,20 @@ import { ToastComponent } from './core/toast.component';
         @if (theme.resolved() === 'dark') { ☀️ } @else { 🌙 }
       </button>
       <label class="lang-switch">
-        <select [value]="i18n.lang()" (change)="i18n.setLang($any($event.target).value)">
-          <option value="fr">{{ i18n.t()('lang.fr') }}</option>
-          <option value="en">{{ i18n.t()('lang.en') }}</option>
-          <option value="es">{{ i18n.t()('lang.es') }}</option>
-          <option value="de">{{ i18n.t()('lang.de') }}</option>
-          <option value="zh">{{ i18n.t()('lang.zh') }}</option>
+        <select [value]="i18n.lang()" (change)="i18n.setLang($any($event.target).value)" aria-label="Language">
+          @for (l of langs; track l) {
+            <option [value]="l">{{ narrow() ? l.toUpperCase() : i18n.t()('lang.' + l) }}</option>
+          }
         </select>
       </label>
       @if (auth.user(); as u) {
-        <a routerLink="/preferences" class="btn secondary small">{{ i18n.t()('nav.preferences') }}</a>
+        <a routerLink="/preferences" class="btn secondary small" [attr.aria-label]="i18n.t()('nav.preferences')" [title]="i18n.t()('nav.preferences')">
+          @if (narrow()) { ⚙️ } @else { {{ i18n.t()('nav.preferences') }} }
+        </a>
         <span class="user">{{ u.name || u.email }}</span>
-        <button class="btn secondary small" (click)="logout()">{{ i18n.t()('nav.logout') }}</button>
+        <button class="btn secondary small" (click)="logout()" [attr.aria-label]="i18n.t()('nav.logout')" [title]="i18n.t()('nav.logout')">
+          @if (narrow()) { ⏻ } @else { {{ i18n.t()('nav.logout') }} }
+        </button>
       }
     </nav>
     <div class="container">
@@ -38,11 +40,14 @@ import { ToastComponent } from './core/toast.component';
     <app-toast />
   `,
   styles: `
-    .brand{font-weight:700;font-size:1.1rem}
-    .user{opacity:.9}
-    .small{padding:.35rem .7rem;font-size:.85rem}
+    .brand{font-weight:700;font-size:1.1rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+    /* the user name gives way first, then disappears */
+    .user{opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:14rem;min-width:0;flex-shrink:20}
+    @media (max-width: 900px){ .user{display:none} }
+    @media (max-width: 640px){ .brand{font-size:1rem} }
+    .small{padding:.35rem .7rem;font-size:.85rem;white-space:nowrap;flex-shrink:0}
     .lang-switch select{padding:.3rem;border-radius:6px;border:1px solid #374151;background:#1f2937;color:#fff}
-    .theme-toggle{background:transparent;border:1px solid #374151;border-radius:6px;padding:.3rem .5rem;font-size:1rem;line-height:1;cursor:pointer}
+    .theme-toggle{flex-shrink:0;background:transparent;border:1px solid #374151;border-radius:6px;padding:.3rem .5rem;font-size:1rem;line-height:1;cursor:pointer}
     .theme-toggle:hover{background:#1f2937}
   `,
 })
@@ -50,6 +55,17 @@ export class AppComponent {
   auth = inject(AuthService);
   i18n = inject(I18nService);
   theme = inject(ThemeService);
+  protected readonly langs = ['fr', 'en', 'es', 'de', 'zh'] as const;
+
+  // Narrow screens: icon buttons and language codes so the header fits on one line
+  private readonly mq = window.matchMedia('(max-width: 640px)');
+  protected readonly narrow = signal(this.mq.matches);
+
+  constructor() {
+    const onChange = (e: MediaQueryListEvent) => this.narrow.set(e.matches);
+    this.mq.addEventListener('change', onChange);
+    inject(DestroyRef).onDestroy(() => this.mq.removeEventListener('change', onChange));
+  }
 
   logout() { this.auth.logout(); }
 }

@@ -60,9 +60,9 @@ export class AuthService {
 
   /** Copies the /me result into `user` (also called by the guard, which can't rely on effect timing). */
   syncUser() {
-    const v = this.me.value();
-    if (v) this._user.set(v);
-    else if (this.me.error()) this._user.set(null);
+    // value() throws while the resource is in error (401 when logged out): check error first
+    if (this.me.error()) this._user.set(null);
+    else if (this.me.hasValue()) this._user.set(this.me.value());
   }
 
   private extractTokenFromUrl(loc: Location): string | null {

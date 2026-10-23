@@ -31,6 +31,10 @@ button { font: inherit; cursor: pointer; }
 .app-nav { display: flex; align-items: center; gap: 1rem; padding: .75rem 1.5rem; background: var(--bg-nav); color: var(--text-nav); }
 .app-nav a { color: var(--text-nav); text-decoration: none; }
 .app-nav .spacer { flex: 1; }
+@media (max-width: 640px) {
+  .app-nav { gap: .5rem; padding: .6rem 1rem; }
+  .container { margin: 1rem auto; }
+}
 .btn { padding: .5rem 1rem; border: none; border-radius: 6px; background: #2563eb; color: #fff; }
 .btn.secondary { background: #4b5563; }
 html.dark .btn.secondary { background: #334155; }

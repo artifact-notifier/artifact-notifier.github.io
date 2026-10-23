@@ -17,7 +17,7 @@ import { I18nService } from './i18n.service';
   `,
   styles: `
     .toast-stack{position:fixed;right:1rem;bottom:1rem;display:flex;flex-direction:column;gap:.5rem;z-index:9999}
-    .toast{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);color:#fff;min-width:260px;max-width:420px;animation:slide .2s}
+    .toast{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);color:#fff;min-width:min(260px,calc(100vw - 2rem));max-width:min(420px,calc(100vw - 2rem));animation:slide .2s}
     .toast--success{background:#16a34a}.toast--error{background:#dc2626}.toast--info{background:#2563eb}
     .toast-close{background:transparent;border:none;color:#fff;font-size:1.2rem;cursor:pointer;margin-left:auto}
     @keyframes slide{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
