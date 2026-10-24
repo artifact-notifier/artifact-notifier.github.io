@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import * as Joi from 'joi';
 
-export const validationSchema = Joi.object({
+const validationSchema = Joi.object({
   BACKEND_PORT: Joi.number().default(3000),
   FRONTEND_URL: Joi.string().default('http://localhost:4200'),
   // Public API URL (used for OIDC redirect_uris).

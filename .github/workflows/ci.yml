@@ -44,6 +44,8 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: node_modules/.bin/prisma generate
       - run: npm run lint
+      # dead code: unused files, exports, dependencies
+      - run: npm run knip
       # unit (src/**/*.spec.ts), integration on SQLite and HTTP API tests (test/)
       - run: npm run test:cov
       - run: npm run build
@@ -69,6 +71,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci --ignore-scripts
       - run: npm run lint
+      # dead code: unused files, exports, dependencies
+      - run: npm run knip
       - run: npm run test:cov
       - run: npm run build
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

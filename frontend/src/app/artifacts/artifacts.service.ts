@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiConfigService } from '../core/api-config.service';
 import { AuthService } from '../core/auth.service';
 
-export interface Delivery {
+interface Delivery {
   channel: string;
   status: string;
   sentAt: string | null;

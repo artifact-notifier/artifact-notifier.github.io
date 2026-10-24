@@ -21,14 +21,6 @@ const retryDelayMs = (attempts: number) => 2 ** (attempts - 1) * 60_000;
 /** A send that cannot succeed by retrying (no address, Telegram not linked). */
 class PermanentDeliveryError extends Error {}
 
-export interface NewVersionPayload {
-  followedArtifactId: string;
-  ecosystem: Ecosystem;
-  coordinates: string;
-  version: string;
-  userId: string;
-}
-
 @Injectable()
 export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);

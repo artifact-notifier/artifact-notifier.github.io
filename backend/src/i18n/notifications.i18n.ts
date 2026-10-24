@@ -1,4 +1,4 @@
-export type Locale = 'fr' | 'en' | 'es' | 'de' | 'zh';
+type Locale = 'fr' | 'en' | 'es' | 'de' | 'zh';
 const D: Record<Locale, any> = {
   fr: {
     emailImmediateSubject: (c: string, v: string) => `Nouvelle version : ${c}@${v}`,
@@ -76,7 +76,7 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>汇总 — ${n} 个新版本</b>`,
   },
 };
-export function getLocale(l?: string): Locale {
+function getLocale(l?: string): Locale {
   return (['fr', 'en', 'es', 'de', 'zh'].includes(l as any) ? l : 'fr') as Locale;
 }
 export function t(locale: string | undefined, key: string, ...args: any[]): string {

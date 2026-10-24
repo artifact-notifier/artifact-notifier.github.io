@@ -48,7 +48,6 @@ model UserPreferences {
   includePrereleases    Boolean           @default(false)
   telegramChatId        String?           @unique
   telegramUsername    String?
-  lastDigestSentAt      DateTime?
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
 

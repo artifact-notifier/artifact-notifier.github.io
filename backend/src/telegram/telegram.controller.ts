@@ -16,7 +16,7 @@ import { JwtService } from '@nestjs/jwt';
 import { TelegramService, TelegramAuthData } from './telegram.service';
 import { UsersService } from '../auth/users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CurrentUser, AuthedUser, Public } from '../auth/decorators';
+import { CurrentUser, AuthedUser } from '../auth/decorators';
 import { SESSION_COOKIE, sessionCookieOptions, signSession } from '../auth/session';
 
 @Controller('auth/telegram')
@@ -27,8 +27,6 @@ export class TelegramController {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
-
-  @Public()
   @Get('config')
   configPublic() {
     return {
@@ -36,8 +34,6 @@ export class TelegramController {
       botUsername: this.telegram.getBotUsername() || null,
     };
   }
-
-  @Public()
   @Post('verify')
   async verify(@Body() data: TelegramAuthData, @Res({ passthrough: true }) res: Response) {
     if (!this.telegram.isEnabled()) throw new ForbiddenException('Telegram login is disabled');

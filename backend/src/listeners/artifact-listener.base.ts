@@ -6,14 +6,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PublishedVersion } from '../artifacts/version-sources';
 import { compareVersions, isPrerelease } from '../artifacts/versions';
 
-export interface ArtifactId {
-  id: string;
-}
-
-export interface Artifact extends ArtifactId {
-  version: string;
-}
-
 export interface FollowedEntry {
   followedArtifactId: string;
   userId: string;

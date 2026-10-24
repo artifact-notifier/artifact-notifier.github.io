@@ -23,7 +23,6 @@ import {
 import { OidcService } from './oidc.service';
 import { UsersService } from './users.service';
 import { JwtService } from '@nestjs/jwt';
-import { Public } from './decorators';
 import { CurrentUser, AuthedUser } from './decorators';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { adminUserIds } from './admin.guard';
@@ -52,8 +51,6 @@ export class OidcController {
     res.clearCookie(SESSION_COOKIE, sessionCookieOptions(this.config));
     return { success: true };
   }
-
-  @Public()
   @Get('providers')
   providers() {
     return this.oidc.listProviders();
@@ -118,8 +115,6 @@ export class OidcController {
   async unlink(@CurrentUser() user: AuthedUser, @Param('provider') provider: string) {
     return this.users.unlinkProvider(user.sub, provider.toLowerCase());
   }
-
-  @Public()
   @Get(':provider/link')
   async link(@Param('provider') provider: string, @Query('token') token: string, @Res() res: Response) {
     const hashPrefix = this.frontendUrl().includes('#') ? this.frontendUrl() : `${this.frontendUrl()}/#`;
@@ -148,8 +143,6 @@ export class OidcController {
       throw new UnauthorizedException((e as Error).message);
     }
   }
-
-  @Public()
   @Get(':provider')
   async login(@Param('provider') provider: string, @Res() res: Response) {
     try {
@@ -173,8 +166,6 @@ export class OidcController {
       throw new UnauthorizedException((e as Error).message);
     }
   }
-
-  @Public()
   @Get(':provider/callback')
   async callback(
     @Param('provider') provider: string,
