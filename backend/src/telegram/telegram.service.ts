@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import { Allow, IsNotEmpty, IsString } from 'class-validator';
 import { t } from '../i18n/notifications.i18n';
+import { DigestGroup, digestHeading } from '../notifications/digest';
 
 function escapeHtml(str: string): string {
   if (!str) return '';
@@ -99,20 +100,30 @@ export class TelegramService {
     }
   }
 
-  formatImmediate(artifact: { coordinates: string; ecosystem: string; version: string }, locale?: string): string {
-    return t(
+  formatImmediate(
+    artifact: { coordinates: string; ecosystem: string; version: string },
+    locale?: string,
+    projects: string[] = [],
+  ): string {
+    const msg = t(
       locale,
       'telegramImmediate',
       escapeHtml(artifact.ecosystem),
       escapeHtml(artifact.coordinates),
       escapeHtml(artifact.version),
     );
+    return projects.length ? `${msg}\n📁 ${projects.map(escapeHtml).join(', ')}` : msg;
   }
 
-  formatDigest(items: { coordinates: string; ecosystem: string; version: string }[], locale?: string): string {
-    let txt = `${t(locale, 'telegramDigestHeader', items.length)}\n\n`;
-    for (const it of items) {
-      txt += `• ${escapeHtml(it.ecosystem)} <code>${escapeHtml(it.coordinates)}</code> → <b>${escapeHtml(it.version)}</b>\n`;
+  formatDigest(groups: DigestGroup[], locale?: string): string {
+    const count = new Set(groups.flatMap((g) => g.items)).size;
+    let txt = `${t(locale, 'telegramDigestHeader', count)}\n`;
+    for (const g of groups) {
+      const title = digestHeading(g, groups, locale);
+      txt += title ? `\n<b>${escapeHtml(title)}</b>\n` : '\n';
+      for (const it of g.items) {
+        txt += `• ${escapeHtml(it.ecosystem)} <code>${escapeHtml(it.coordinates)}</code> → <b>${escapeHtml(it.version)}</b>\n`;
+      }
     }
     return txt;
   }

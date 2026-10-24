@@ -29,15 +29,32 @@ describe('MailService', () => {
     expect(html).toContain('1.0.0');
   });
 
-  it('renders a digest with one line per version', () => {
+  it('renders a digest with one line per version, without heading when there is no project', () => {
     const html = service.renderDigest(
       [
-        { ecosystem: 'NPM', coordinates: 'a', version: '1' },
-        { ecosystem: 'MAVEN', coordinates: 'g:b', version: '2' },
+        {
+          project: null,
+          items: [
+            { ecosystem: 'NPM', coordinates: 'a', version: '1' },
+            { ecosystem: 'MAVEN', coordinates: 'g:b', version: '2' },
+          ],
+        },
       ],
       'fr',
     );
     expect(html.match(/<li>/g)).toHaveLength(2);
     expect(html).toContain('g:b');
+    expect(html).not.toContain('<h3>');
+  });
+
+  it('renders one section per project, then the follows outside projects', () => {
+    const html = service.renderDigest(
+      [
+        { project: 'shop <b>', items: [{ ecosystem: 'NPM', coordinates: 'a', version: '1' }] },
+        { project: null, items: [{ ecosystem: 'NPM', coordinates: 'b', version: '2' }] },
+      ],
+      'fr',
+    );
+    expect(html.match(/<h3>[^<]*<\/h3>/g)).toEqual(['<h3>📁 shop &lt;b&gt;</h3>', '<h3>Hors projet</h3>']);
   });
 });

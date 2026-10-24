@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createTransport, Transporter } from 'nodemailer';
 import * as Handlebars from 'handlebars';
 import { t } from '../../i18n/notifications.i18n';
+import { DigestGroup, digestHeading as heading } from '../digest';
 
 @Injectable()
 export class MailService {
@@ -55,16 +56,23 @@ export class MailService {
     });
   }
 
-  renderDigest(items: { coordinates: string; ecosystem: string; version: string }[], locale?: string) {
+  renderDigest(groups: DigestGroup[], locale?: string) {
     const template = Handlebars.compile(`
       <h2>{{title}}</h2>
       <p>{{intro}}</p>
-      <ul>
-        {{#each items}}
-          <li><strong>{{this.ecosystem}}</strong> – {{this.coordinates}} : {{this.version}}</li>
-        {{/each}}
-      </ul>
+      {{#each groups}}
+        {{#if this.heading}}<h3>{{this.heading}}</h3>{{/if}}
+        <ul>
+          {{#each this.items}}
+            <li><strong>{{this.ecosystem}}</strong> – {{this.coordinates}} : {{this.version}}</li>
+          {{/each}}
+        </ul>
+      {{/each}}
     `);
-    return template({ items, title: t(locale, 'emailDigestTitle'), intro: t(locale, 'emailDigestIntro') });
+    return template({
+      groups: groups.map((g) => ({ heading: heading(g, groups, locale), items: g.items })),
+      title: t(locale, 'emailDigestTitle'),
+      intro: t(locale, 'emailDigestIntro'),
+    });
   }
 }

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail/mail.service';
 import { TelegramService } from '../telegram/telegram.service';
 import { t } from '../i18n/notifications.i18n';
+import { groupByProject, indexProjects, ProjectsByArtifact, projectsOf } from './digest';
 import {
   ArtifactVersionEvent,
   Ecosystem,
@@ -101,11 +102,26 @@ export class NotificationsService implements OnModuleInit {
     try {
       const chatId = this.getChatId(user, prefs);
       if (!chatId) throw new PermanentDeliveryError('Telegram not linked');
-      await this.telegram.sendMessage(chatId, this.telegram.formatImmediate(event, prefs?.locale));
+      const projects = projectsOf(await this.projectsByArtifact(user.id), event);
+      await this.telegram.sendMessage(chatId, this.telegram.formatImmediate(event, prefs?.locale, projects));
       await this.markSent([delivery]);
     } catch (e) {
       await this.markFailed([delivery], e as Error, user.id);
     }
+  }
+
+  /** The user's project names using each artifact, to group notifications by project. */
+  private async projectsByArtifact(userId: string): Promise<ProjectsByArtifact> {
+    return indexProjects(
+      await this.prisma.projectSource.findMany({
+        where: { project: { userId } },
+        select: {
+          ecosystem: true,
+          project: { select: { name: true } },
+          dependencies: { select: { coordinates: true } },
+        },
+      }),
+    );
   }
 
   /** PENDING -> SENDING, one by one: returns only the deliveries this caller now owns. */
@@ -204,6 +220,7 @@ export class NotificationsService implements OnModuleInit {
         ecosystem: d.event.ecosystem,
         version: d.event.version,
       }));
+      const groups = groupByProject(lines, await this.projectsByArtifact(userId));
       try {
         if (ch === 'email') {
           // Notification address (editable in preferences), not the account identity.
@@ -213,12 +230,12 @@ export class NotificationsService implements OnModuleInit {
           await this.mail.send(
             to,
             t(prefs?.locale, 'emailDigestSubject', lines.length),
-            this.mail.renderDigest(lines, prefs?.locale),
+            this.mail.renderDigest(groups, prefs?.locale),
           );
         } else if (ch === 'telegram') {
           const chatId = this.getChatId(user, prefs);
           if (!chatId) throw new PermanentDeliveryError('Telegram not linked');
-          await this.telegram.sendMessage(chatId, this.telegram.formatDigest(lines, prefs?.locale));
+          await this.telegram.sendMessage(chatId, this.telegram.formatDigest(groups, prefs?.locale));
         } else {
           throw new PermanentDeliveryError(`Unknown channel ${ch}`);
         }

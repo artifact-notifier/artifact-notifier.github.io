@@ -125,4 +125,41 @@ describe('NotificationsService', () => {
 
     expect((await deliveries('u1')).map((d) => d.status)).toEqual(['PENDING']);
   });
+
+  it('groups digests by project and names the projects in immediate messages', async () => {
+    await createUser(prisma, 'u1', { notificationMode: 'DIGEST', notificationChannel: 'email' });
+    await createUser(prisma, 'u2', {
+      notificationMode: 'IMMEDIATE',
+      notificationChannel: 'telegram',
+      telegramChatId: '42',
+    });
+    for (const userId of ['u1', 'u2']) {
+      const project = await prisma.project.create({ data: { userId, name: 'shop' } });
+      const source = await prisma.projectSource.create({
+        data: { projectId: project.id, label: 'package.json', kind: 'package.json', ecosystem: 'NPM' },
+      });
+      await prisma.projectDependency.create({ data: { sourceId: source.id, coordinates: 'pkg', scope: 'prod' } });
+    }
+    const other = await prisma.followedArtifact.create({
+      data: { userId: 'u1', ecosystem: 'NPM', coordinates: 'solo' },
+    });
+    const fa1 = await follow('u1');
+    const fa2 = await follow('u2');
+
+    await notifications.onNewVersion(fa2.id, 'u2', 'NPM', 'pkg', '1.0.0');
+    expect(telegram.formatImmediate).toHaveBeenCalledWith(expect.objectContaining({ coordinates: 'pkg' }), 'fr', [
+      'shop',
+    ]);
+
+    await notifications.onNewVersion(fa1.id, 'u1', 'NPM', 'pkg', '1.0.0');
+    await notifications.onNewVersion(other.id, 'u1', 'NPM', 'solo', '2.0.0');
+    await notifications.processDigest();
+    expect(mail.renderDigest).toHaveBeenCalledWith(
+      [
+        { project: 'shop', items: [expect.objectContaining({ coordinates: 'pkg' })] },
+        { project: null, items: [expect.objectContaining({ coordinates: 'solo' })] },
+      ],
+      'fr',
+    );
+  });
 });

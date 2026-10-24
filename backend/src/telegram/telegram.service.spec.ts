@@ -46,8 +46,39 @@ describe('TelegramService', () => {
     });
 
     it('escapes HTML in digests', () => {
-      const msg = service.formatDigest([{ ecosystem: 'MAVEN', coordinates: 'g:a<script>', version: '1' }], 'fr');
+      const msg = service.formatDigest(
+        [{ project: null, items: [{ ecosystem: 'MAVEN', coordinates: 'g:a<script>', version: '1' }] }],
+        'fr',
+      );
       expect(msg).toContain('g:a&lt;script&gt;');
+      expect(msg).not.toContain('📁');
+    });
+
+    it('groups a digest by project and counts each version once', () => {
+      const line = { ecosystem: 'NPM', coordinates: 'rxjs', version: '7.9.0' };
+      const msg = service.formatDigest(
+        [
+          { project: 'a&b', items: [line] },
+          { project: 'shop', items: [line] },
+          { project: null, items: [{ ecosystem: 'NPM', coordinates: 'react', version: '20.0.0' }] },
+        ],
+        'en',
+      );
+      expect(msg).toContain('2 new version(s)');
+      expect(msg).toContain('<b>📁 a&amp;b</b>');
+      expect(msg).toContain('<b>Outside any project</b>');
+      expect(msg.match(/rxjs/g)).toHaveLength(2);
+    });
+
+    it('names the projects in an immediate message', () => {
+      const msg = service.formatImmediate({ ecosystem: 'NPM', coordinates: 'rxjs', version: '1' }, 'en', [
+        'shop',
+        'x<y',
+      ]);
+      expect(msg.endsWith('\n📁 shop, x&lt;y')).toBe(true);
+      expect(service.formatImmediate({ ecosystem: 'NPM', coordinates: 'rxjs', version: '1' }, 'en')).not.toContain(
+        '📁',
+      );
     });
   });
 });

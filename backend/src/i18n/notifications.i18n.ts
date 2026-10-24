@@ -1,6 +1,7 @@
 type Locale = 'fr' | 'en' | 'es' | 'de' | 'zh';
 const D: Record<Locale, any> = {
   fr: {
+    digestNoProject: 'Hors projet',
     emailImmediateSubject: (c: string, v: string) => `Nouvelle version : ${c}@${v}`,
     emailDigestSubject: (n: number) => `Récapitulatif : ${n} nouvelle(s) version(s)`,
     emailImmediateTitle: 'Nouvelle version disponible 🎉',
@@ -16,6 +17,7 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Récapitulatif — ${n} nouvelle(s) version(s)</b>`,
   },
   en: {
+    digestNoProject: 'Outside any project',
     emailImmediateSubject: (c: string, v: string) => `New version: ${c}@${v}`,
     emailDigestSubject: (n: number) => `Digest: ${n} new version(s)`,
     emailImmediateTitle: 'New version available 🎉',
@@ -31,6 +33,7 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Digest — ${n} new version(s)</b>`,
   },
   es: {
+    digestNoProject: 'Fuera de proyecto',
     emailImmediateSubject: (c: string, v: string) => `Nueva versión: ${c}@${v}`,
     emailDigestSubject: (n: number) => `Resumen: ${n} nueva(s) versión(es)`,
     emailImmediateTitle: 'Nueva versión disponible 🎉',
@@ -46,6 +49,7 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Resumen — ${n} nueva(s) versión(es)</b>`,
   },
   de: {
+    digestNoProject: 'Ohne Projekt',
     emailImmediateSubject: (c: string, v: string) => `Neue Version: ${c}@${v}`,
     emailDigestSubject: (n: number) => `Zusammenfassung: ${n} neue Version(en)`,
     emailImmediateTitle: 'Neue Version verfügbar 🎉',
@@ -61,6 +65,7 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Zusammenfassung — ${n} neue Version(en)</b>`,
   },
   zh: {
+    digestNoProject: '不属于任何项目',
     emailImmediateSubject: (c: string, v: string) => `新版本：${c}@${v}`,
     emailDigestSubject: (n: number) => `汇总：${n} 个新版本`,
     emailImmediateTitle: '有新版本可用 🎉',
