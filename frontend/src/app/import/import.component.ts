@@ -1,6 +1,7 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { httpResource } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
+import { NgTemplateOutlet } from '@angular/common';
 import { FollowedArtifact } from '../artifacts/artifacts.service';
 import { ApiConfigService } from '../core/api-config.service';
 import { I18nService } from '../core/i18n.service';
@@ -19,12 +20,14 @@ const DEFAULT_SCOPES = new Set<DepScope>(['prod', 'parent', 'bom']);
 interface SourceState {
   parsed: ParsedSource;
   label: string;
+  /** imported although nothing of it is to be followed */
+  forced: boolean;
   checked: Set<string>;
 }
 
 @Component({
   selector: 'app-import',
-  imports: [RouterLink, EcoIconComponent, OrphansDialogComponent],
+  imports: [RouterLink, NgTemplateOutlet, EcoIconComponent, OrphansDialogComponent],
   template: `
     <p>
       <a routerLink="/">← {{ i18n.t()('project.back') }}</a>
@@ -87,14 +90,20 @@ interface SourceState {
       }
     }
 
-    @for (s of sources(); track s.parsed.dir + s.parsed.kind + s.parsed.label; let i = $index) {
+    <ng-template #sourceCard let-s>
       <section class="card">
+        @if (!hasSelection(s)) {
+          <label class="include">
+            <input type="checkbox" [checked]="s.forced" (change)="setForced(s, $any($event.target).checked)" />
+            {{ i18n.t()('import.includeAnyway') }}
+          </label>
+        }
         <div class="source-head">
           <eco-icon [ecosystem]="s.parsed.ecosystem" />
           <input
             class="label"
             [value]="s.label"
-            (input)="setLabel(i, $any($event.target).value)"
+            (input)="setLabel(s, $any($event.target).value)"
             [attr.aria-label]="i18n.t()('import.sourceLabel')"
             maxlength="200"
           />
@@ -110,8 +119,8 @@ interface SourceState {
           <p class="small removed">{{ i18n.t()('import.removed', { list: removedFrom(s).join(', ') }) }}</p>
         }
         <div class="bulk">
-          <button type="button" class="link" (click)="setAll(i, true)">{{ i18n.t()('import.all') }}</button>
-          <button type="button" class="link" (click)="setAll(i, false)">{{ i18n.t()('import.none') }}</button>
+          <button type="button" class="link" (click)="setAll(s, true)">{{ i18n.t()('import.all') }}</button>
+          <button type="button" class="link" (click)="setAll(s, false)">{{ i18n.t()('import.none') }}</button>
           <span class="muted small">{{
             i18n.t()('import.selected', { n: '' + s.checked.size, t: '' + s.parsed.dependencies.length })
           }}</span>
@@ -129,7 +138,7 @@ interface SourceState {
                     type="checkbox"
                     [checked]="s.checked.has(d.coordinates) || isFollowed(d)"
                     [disabled]="isFollowed(d)"
-                    (change)="toggle(i, d.coordinates)"
+                    (change)="toggle(s, d.coordinates)"
                   />
                   <span class="coords">{{ d.coordinates }}</span>
                   <span class="muted small">{{ d.version ?? d.declared ?? '' }}</span>
@@ -150,6 +159,20 @@ interface SourceState {
           </ul>
         }
       </section>
+    </ng-template>
+
+    @for (s of included(); track s.parsed.files[0]) {
+      <ng-container *ngTemplateOutlet="sourceCard; context: { $implicit: s }" />
+    }
+
+    @if (excluded().length) {
+      <details class="excluded">
+        <summary>{{ i18n.t()('import.excluded', { n: '' + excluded().length }) }}</summary>
+        <p class="muted small">{{ i18n.t()('import.excludedHint') }}</p>
+        @for (s of excluded(); track s.parsed.files[0]) {
+          <ng-container *ngTemplateOutlet="sourceCard; context: { $implicit: s }" />
+        }
+      </details>
     }
 
     @if (orphans(); as list) {
@@ -159,7 +182,7 @@ interface SourceState {
     @if (sources().length) {
       <div class="submit">
         <span class="muted">{{
-          i18n.t()('import.summary', { s: '' + sources().length, n: '' + toFollow().length })
+          i18n.t()('import.summary', { s: '' + included().length, n: '' + toFollow().length })
         }}</span>
         <button
           class="btn"
@@ -299,6 +322,20 @@ interface SourceState {
         transform: rotate(360deg);
       }
     }
+    .include {
+      display: flex;
+      gap: 0.4rem;
+      margin-bottom: 0.25rem;
+      font-size: 0.85rem;
+    }
+    .excluded {
+      margin-bottom: 1rem;
+    }
+    .excluded summary {
+      cursor: pointer;
+      color: var(--muted);
+      padding: 0.5rem 0;
+    }
     .submit {
       position: sticky;
       bottom: 0;
@@ -343,16 +380,24 @@ export class ImportComponent {
   protected readonly submitting = signal(false);
   private importedProjectId = '';
 
+  /**
+   * Sources sent to the project: those with something to follow (checked or
+   * already followed), or kept on purpose. A module depending only on its
+   * siblings has nothing to follow and would just clutter the project.
+   */
+  protected readonly included = computed(() => this.sources().filter((s) => s.forced || this.hasSelection(s)));
+  protected readonly excluded = computed(() => this.sources().filter((s) => !s.forced && !this.hasSelection(s)));
+
   protected readonly toFollow = computed(() =>
-    this.sources().flatMap((s) =>
+    this.included().flatMap((s) =>
       s.parsed.dependencies.filter((d) => s.checked.has(d.coordinates) && !this.isFollowed(d)),
     ),
   );
   protected readonly canSubmit = computed(() => {
-    const labels = this.sources().map((s) => s.label.trim());
+    const labels = this.included().map((s) => s.label.trim());
     const validLabels = labels.every(Boolean) && new Set(labels).size === labels.length;
     const target = this.existing() || (this.projectName().trim() && !this.nameTaken());
-    return !!target && validLabels && this.sources().length > 0;
+    return !!target && validLabels && this.included().length > 0;
   });
 
   async onDrop(event: DragEvent) {
@@ -378,6 +423,7 @@ export class ImportComponent {
         result.sources.map((parsed) => ({
           parsed,
           label: parsed.label,
+          forced: false,
           checked: new Set(parsed.dependencies.filter((d) => DEFAULT_SCOPES.has(d.scope)).map((d) => d.coordinates)),
         })),
       );
@@ -425,27 +471,36 @@ export class ImportComponent {
     );
   }
 
-  protected setLabel(index: number, label: string) {
-    this.sources.update((list) => list.map((s, i) => (i === index ? { ...s, label } : s)));
+  protected hasSelection(s: SourceState): boolean {
+    return s.checked.size > 0 || s.parsed.dependencies.some((d) => this.isFollowed(d));
   }
 
-  protected toggle(index: number, coordinates: string) {
-    this.sources.update((list) =>
-      list.map((s, i) => {
-        if (i !== index) return s;
-        const checked = new Set(s.checked);
-        if (!checked.delete(coordinates)) checked.add(coordinates);
-        return { ...s, checked };
-      }),
-    );
+  /** Sources are identified by their parse result, which never changes (the state objects do). */
+  private updateSource(target: SourceState, change: (s: SourceState) => SourceState) {
+    this.sources.update((list) => list.map((s) => (s.parsed === target.parsed ? change(s) : s)));
   }
 
-  protected setAll(index: number, on: boolean) {
-    this.sources.update((list) =>
-      list.map((s, i) =>
-        i === index ? { ...s, checked: new Set(on ? s.parsed.dependencies.map((d) => d.coordinates) : []) } : s,
-      ),
-    );
+  protected setLabel(source: SourceState, label: string) {
+    this.updateSource(source, (s) => ({ ...s, label }));
+  }
+
+  protected setForced(source: SourceState, forced: boolean) {
+    this.updateSource(source, (s) => ({ ...s, forced }));
+  }
+
+  protected toggle(source: SourceState, coordinates: string) {
+    this.updateSource(source, (s) => {
+      const checked = new Set(s.checked);
+      if (!checked.delete(coordinates)) checked.add(coordinates);
+      return { ...s, checked };
+    });
+  }
+
+  protected setAll(source: SourceState, on: boolean) {
+    this.updateSource(source, (s) => ({
+      ...s,
+      checked: new Set(on ? s.parsed.dependencies.map((d) => d.coordinates) : []),
+    }));
   }
 
   async leave() {
@@ -460,7 +515,7 @@ export class ImportComponent {
     try {
       const res = await this.projects.importProject({
         ...(existing ? { projectId: existing.id } : { projectName: this.projectName().trim() }),
-        sources: this.sources().map((s) => ({
+        sources: this.included().map((s) => ({
           label: s.label.trim(),
           kind: s.parsed.kind,
           ecosystem: s.parsed.ecosystem,

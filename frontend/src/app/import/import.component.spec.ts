@@ -174,6 +174,34 @@ describe('ImportComponent', () => {
     expect(el.textContent).toContain('com.acme:api');
   });
 
+  it('does not import sources with nothing to follow, unless kept on purpose', async () => {
+    await render();
+    const onlyModules = `<project><groupId>com.acme</groupId><artifactId>web</artifactId><version>1.0.0</version>
+      <dependencies><dependency><groupId>com.acme</groupId><artifactId>api</artifactId><version>\${project.version}</version></dependency></dependencies>
+    </project>`;
+    await pick([file('shop/web/pom.xml', onlyModules), file('shop/front/package.json', PACKAGE_JSON)]);
+    const excluded = el.querySelector('details.excluded')!;
+    expect(excluded.querySelector('summary')!.textContent).toContain('(1)');
+    expect(excluded.textContent).toContain('shop/web/pom.xml');
+    expect(el.textContent).toContain('1 source(s), 2 new follow(s)');
+
+    projectsSvc.importProject.mockResolvedValue({ projectId: 'p1', followed: 2, failed: [], orphans: [] });
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    submitButton().click();
+    await fixture.whenStable();
+    expect(projectsSvc.importProject.mock.calls[0][0].sources.map((s: any) => s.label)).toEqual([
+      'shop/front/package.json',
+    ]);
+
+    // kept on purpose
+    const keep = excluded.querySelector('label.include input') as HTMLInputElement;
+    keep.checked = true;
+    keep.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(el.querySelector('details.excluded')).toBeNull();
+    expect(el.textContent).toContain('2 source(s)');
+  });
+
   it('refuses a name already used and an empty source name', async () => {
     projects.set([{ id: 'p1', name: 'shop', notifyNewerOnly: false, createdAt: '', sources: [] }]);
     await render();

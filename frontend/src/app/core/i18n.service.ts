@@ -69,6 +69,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     'import.selected': '{n} / {t} cochée(s)',
     'import.alreadyFollowed': 'déjà suivie',
     'import.moduleHint': 'Modules de ce même projet (multi-module) : inutiles à suivre, donc décochés.',
+    'import.excluded': 'Sources sans dépendance à suivre ({n}) : non importées',
+    'import.excludedHint':
+      'Rien n’y est coché (par exemple un module qui ne dépend que des autres modules du projet). Cochez une dépendance ou « Importer quand même » pour les garder.',
+    'import.includeAnyway': 'Importer quand même',
     'import.summary': '{s} source(s), {n} nouveau(x) suivi(s)',
     'import.submit': 'Importer',
     'import.submitting': 'Import en cours ({n} suivi(s))…',
@@ -291,6 +295,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     'import.alreadyFollowed': 'ya seguida',
     'import.moduleHint':
       'Módulos de este mismo proyecto (multimódulo): no vale la pena seguirlos, por eso están desmarcados.',
+    'import.excluded': 'Fuentes sin nada que seguir ({n}): no importadas',
+    'import.excludedHint':
+      'No tienen nada marcado (p. ej. un módulo que solo depende de los otros módulos del proyecto). Marque una dependencia o «Importar de todos modos» para conservarlas.',
+    'import.includeAnyway': 'Importar de todos modos',
     'import.summary': '{s} fuente(s), {n} nuevo(s) seguimiento(s)',
     'import.submit': 'Importar',
     'import.submitting': 'Importando ({n} seguimiento(s))…',
@@ -511,6 +519,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     'import.selected': '{n} / {t} ausgewählt',
     'import.alreadyFollowed': 'bereits verfolgt',
     'import.moduleHint': 'Module desselben (Multi-Modul-)Projekts: Verfolgen lohnt sich nicht, daher abgewählt.',
+    'import.excluded': 'Quellen ohne zu verfolgende Abhängigkeiten ({n}): nicht importiert',
+    'import.excludedHint':
+      'Darin ist nichts ausgewählt (z. B. ein Modul, das nur von den anderen Modulen des Projekts abhängt). Wählen Sie eine Abhängigkeit oder „Trotzdem importieren“, um sie zu behalten.',
+    'import.includeAnyway': 'Trotzdem importieren',
     'import.summary': '{s} Quelle(n), {n} neue Abonnements',
     'import.submit': 'Importieren',
     'import.submitting': 'Import läuft ({n} Abonnement(s))…',
@@ -731,6 +743,9 @@ const DICT: Record<Lang, Record<string, string>> = {
     'import.selected': '已选 {n} / {t}',
     'import.alreadyFollowed': '已关注',
     'import.moduleHint': '同一（多模块）项目的模块：无需关注，因此未勾选。',
+    'import.excluded': '没有需要关注依赖的来源（{n}）：不导入',
+    'import.excludedHint': '其中没有勾选任何依赖（例如只依赖项目其他模块的模块）。勾选一个依赖或“仍然导入”即可保留。',
+    'import.includeAnyway': '仍然导入',
     'import.summary': '{s} 个来源，新增关注 {n} 个',
     'import.submit': '导入',
     'import.submitting': '正在导入（{n} 个关注）…',
@@ -948,6 +963,10 @@ const DICT: Record<Lang, Record<string, string>> = {
     'import.selected': '{n} / {t} checked',
     'import.alreadyFollowed': 'already followed',
     'import.moduleHint': 'Modules of this same (multi-module) project: no point following them, so unchecked.',
+    'import.excluded': 'Sources with nothing to follow ({n}): not imported',
+    'import.excludedHint':
+      'Nothing is checked in them (e.g. a module depending only on the other modules of the project). Check a dependency or "Import anyway" to keep one.',
+    'import.includeAnyway': 'Import anyway',
     'import.summary': '{s} source(s), {n} new follow(s)',
     'import.submit': 'Import',
     'import.submitting': 'Importing ({n} follow(s))…',
