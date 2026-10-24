@@ -170,6 +170,82 @@ describe('DashboardComponent', () => {
     });
   });
 
+  describe('pagination', () => {
+    // 60 artifacts named pkg-00 … pkg-59 (sorted by name)
+    const MANY: FollowedArtifact[] = Array.from({ length: 60 }, (_, i) => ({
+      id: `m${i}`,
+      ecosystem: 'NPM',
+      coordinates: `pkg-${String(i).padStart(2, '0')}`,
+      currentVersion: '1.0.0',
+      events: [],
+    }));
+    const pager = () => el.querySelector('nav.pager') as HTMLElement;
+    const pagerButton = (label: string) => pager().querySelector(`button[aria-label="${label}"]`) as HTMLButtonElement;
+    const range = () => pager().querySelector('.range')!.textContent!.trim();
+
+    it('shows 25 artifacts per page and moves between pages', async () => {
+      await render(undefined, MANY);
+      expect(rows()).toHaveLength(25);
+      expect(rows()[0]).toBe('pkg-00');
+      expect(range()).toBe('1–25 of 60');
+      expect(pagerButton('Previous page').disabled).toBe(true);
+
+      pagerButton('Next page').click();
+      await settle();
+      expect(rows()[0]).toBe('pkg-25');
+      expect(range()).toBe('26–50 of 60');
+
+      pagerButton('Last page').click();
+      await settle();
+      expect(rows()).toHaveLength(10);
+      expect(range()).toBe('51–60 of 60');
+      expect(pagerButton('Next page').disabled).toBe(true);
+
+      pagerButton('First page').click();
+      await settle();
+      expect(rows()[0]).toBe('pkg-00');
+    });
+
+    it('remembers the page size', async () => {
+      await render(undefined, MANY);
+      const size = pager().querySelector('select') as HTMLSelectElement;
+      size.value = '50';
+      size.dispatchEvent(new Event('change'));
+      await settle();
+      expect(rows()).toHaveLength(50);
+      expect(localStorage.getItem('artifact-notifier.pageSize')).toBe('50');
+    });
+
+    it('goes back to the first page when the filter changes', async () => {
+      await render(undefined, MANY);
+      pagerButton('Last page').click();
+      await settle();
+      const filter = el.querySelector('.filter-input') as HTMLInputElement;
+      filter.value = 'pkg-3';
+      filter.dispatchEvent(new Event('input'));
+      await settle();
+      expect(rows()).toEqual([
+        'pkg-30',
+        'pkg-31',
+        'pkg-32',
+        'pkg-33',
+        'pkg-34',
+        'pkg-35',
+        'pkg-36',
+        'pkg-37',
+        'pkg-38',
+        'pkg-39',
+      ]);
+      // a single page: no pager
+      expect(pager()).toBeNull();
+    });
+
+    it('has no pager for a short list', async () => {
+      await render();
+      expect(pager()).toBeNull();
+    });
+  });
+
   describe('list', () => {
     it('shows the followed artifacts sorted by name, with the sync status', async () => {
       await render();

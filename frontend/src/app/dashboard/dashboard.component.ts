@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { httpResource } from '@angular/common/http';
@@ -15,6 +15,16 @@ import { artifactKey, Project, ProjectsService } from '../projects/projects.serv
 
 type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
 type FilterEco = 'ALL' | Eco;
+
+const PAGE_SIZE_KEY = 'artifact-notifier.pageSize';
+function readPageSize(): number {
+  try {
+    const n = Number(localStorage.getItem(PAGE_SIZE_KEY));
+    return [25, 50, 100].includes(n) ? n : 25;
+  } catch {
+    return 25;
+  }
+}
 type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
 
 @Component({
@@ -229,7 +239,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
             >
             <span style="width:110px;text-align:right">{{ i18n.t()('dashboard.col.actions') }}</span>
           </div>
-          @for (a of filteredSorted(); track a.id) {
+          @for (a of pageItems(); track a.id) {
             <div class="dense-row" role="row">
               <eco-icon [ecosystem]="a.ecosystem" />
               <span class="coords-cell" [title]="a.coordinates">{{ a.coordinates }}</span>
@@ -290,6 +300,55 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
             }
           }
         </div>
+        @if (filteredSorted().length > pageSizes[0]) {
+          <nav class="pager" [attr.aria-label]="i18n.t()('dashboard.pager')">
+            <button
+              type="button"
+              class="btn secondary small"
+              [disabled]="currentPage() === 1"
+              (click)="page.set(1)"
+              [attr.aria-label]="i18n.t()('dashboard.pager.first')"
+            >
+              «
+            </button>
+            <button
+              type="button"
+              class="btn secondary small"
+              [disabled]="currentPage() === 1"
+              (click)="page.set(currentPage() - 1)"
+              [attr.aria-label]="i18n.t()('dashboard.pager.prev')"
+            >
+              ‹
+            </button>
+            <span class="range" aria-live="polite">{{ i18n.t()('dashboard.pager.range', range()) }}</span>
+            <button
+              type="button"
+              class="btn secondary small"
+              [disabled]="currentPage() === pageCount()"
+              (click)="page.set(currentPage() + 1)"
+              [attr.aria-label]="i18n.t()('dashboard.pager.next')"
+            >
+              ›
+            </button>
+            <button
+              type="button"
+              class="btn secondary small"
+              [disabled]="currentPage() === pageCount()"
+              (click)="page.set(pageCount())"
+              [attr.aria-label]="i18n.t()('dashboard.pager.last')"
+            >
+              »
+            </button>
+            <label class="size">
+              {{ i18n.t()('dashboard.pager.size') }}
+              <select [ngModel]="pageSize()" (ngModelChange)="setPageSize(+$event)">
+                @for (n of pageSizes; track n) {
+                  <option [value]="n">{{ n }}</option>
+                }
+              </select>
+            </label>
+          </nav>
+        }
       }
     </div>
 
@@ -322,6 +381,27 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
     }
   `,
   styles: `
+    .pager {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+    }
+    .pager .range {
+      min-width: 9rem;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+    .pager .size {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-left: 0.5rem;
+      color: var(--muted);
+    }
     .projects-head {
       display: flex;
       align-items: center;
@@ -692,6 +772,10 @@ export class DashboardComponent {
   /** 'ALL', 'NONE' (followed outside any project) or a project id */
   protected readonly filterProject = signal('ALL');
   protected readonly filterEco = signal<FilterEco>('ALL');
+  protected readonly pageSizes = [25, 50, 100] as const;
+  protected readonly pageSize = signal<number>(readPageSize());
+  /** requested page (1-based); currentPage() clamps it when the list shrinks */
+  protected readonly page = signal(1);
   protected readonly filterText = signal('');
   protected readonly sortBy = signal<SortBy>('name_asc');
   protected readonly expanded = signal<Set<string>>(new Set());
@@ -747,6 +831,32 @@ export class DashboardComponent {
     });
     return copy;
   });
+
+  protected readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filteredSorted().length / this.pageSize())));
+  protected readonly currentPage = computed(() => Math.min(this.page(), this.pageCount()));
+  protected readonly pageItems = computed(() => {
+    const start = (this.currentPage() - 1) * this.pageSize();
+    return this.filteredSorted().slice(start, start + this.pageSize());
+  });
+  protected readonly range = computed(() => {
+    const total = this.filteredSorted().length;
+    const from = (this.currentPage() - 1) * this.pageSize() + 1;
+    return {
+      from: '' + Math.min(from, total),
+      to: '' + Math.min(from + this.pageSize() - 1, total),
+      total: '' + total,
+    };
+  });
+
+  setPageSize(size: number) {
+    this.pageSize.set(size);
+    this.page.set(1);
+    try {
+      localStorage.setItem(PAGE_SIZE_KEY, String(size));
+    } catch {
+      // storage unavailable: the size just isn't remembered
+    }
+  }
 
   fmtSync(iso: string | null | undefined): string {
     if (!iso) return '—';
@@ -827,6 +937,13 @@ export class DashboardComponent {
   }
 
   constructor() {
+    effect(() => {
+      this.filterEco();
+      this.filterProject();
+      this.filterText();
+      this.sortBy();
+      untracked(() => this.page.set(1));
+    });
     effect((onCleanup) => {
       // Local tick every second (smooth, zero network calls) for
       // relative times "X s/min ago". API refreshes are spaced out.
