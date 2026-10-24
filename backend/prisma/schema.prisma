@@ -119,6 +119,8 @@ model Project {
   id        String          @id @default(cuid())
   userId    String
   name      String
+  // skip versions not newer than the one this project uses (e.g. patches of older lines)
+  notifyNewerOnly Boolean   @default(false)
   createdAt DateTime        @default(now())
 
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)

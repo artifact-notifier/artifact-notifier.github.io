@@ -9,6 +9,15 @@ import { normalizeCoordinates } from './coordinates';
 // projects import many dependencies at once
 const MAX_FOLLOWS_PER_USER = 500;
 
+export interface FollowedEntry {
+  followedArtifactId: string;
+  userId: string;
+  currentVersion: string | null;
+  includePrereleases: boolean;
+  /** the follower's projects using this artifact: their option and the version they use */
+  usedIn: { newerOnly: boolean; version: string | null }[];
+}
+
 @Injectable()
 export class ArtifactsService {
   constructor(
@@ -144,33 +153,47 @@ export class ArtifactsService {
 
   // ---- Used by listeners ----
 
-  async getFollowedCoordinates(ecosystem: Ecosystem): Promise<Map<string, string[]>> {
-    // coordinates -> list of followedArtifact ids (one per user)
-    const rows = await this.prisma.followedArtifact.findMany({
-      where: { ecosystem },
-      select: {
-        id: true,
-        coordinates: true,
-        currentVersion: true,
-        userId: true,
-        user: { select: { preferences: { select: { includePrereleases: true } } } },
-      },
-    });
-    const map = new Map<
-      string,
-      { followedArtifactId: string; userId: string; currentVersion: string | null; includePrereleases: boolean }[]
-    >();
-    for (const r of rows) {
-      const arr = map.get(r.coordinates) || [];
-      arr.push({
-        followedArtifactId: r.id,
-        userId: r.userId,
-        currentVersion: r.currentVersion,
-        includePrereleases: r.user.preferences?.includePrereleases ?? false,
-      });
-      map.set(r.coordinates, arr);
+  /** Followers of each artifact of an ecosystem (one entry per user), with their projects' constraints. */
+  async getFollowedCoordinates(ecosystem: Ecosystem): Promise<Map<string, FollowedEntry[]>> {
+    const [rows, projectDeps] = await Promise.all([
+      this.prisma.followedArtifact.findMany({
+        where: { ecosystem },
+        select: {
+          id: true,
+          coordinates: true,
+          currentVersion: true,
+          userId: true,
+          user: { select: { preferences: { select: { includePrereleases: true } } } },
+        },
+      }),
+      this.prisma.projectDependency.findMany({
+        where: { source: { ecosystem } },
+        select: {
+          coordinates: true,
+          version: true,
+          source: { select: { project: { select: { userId: true, notifyNewerOnly: true } } } },
+        },
+      }),
+    ]);
+    const usedIn = new Map<string, FollowedEntry['usedIn']>();
+    for (const d of projectDeps) {
+      const k = `${d.source.project.userId}\n${d.coordinates}`;
+      usedIn.set(k, [...(usedIn.get(k) ?? []), { newerOnly: d.source.project.notifyNewerOnly, version: d.version }]);
     }
-    return map as any;
+    const map = new Map<string, FollowedEntry[]>();
+    for (const r of rows) {
+      map.set(r.coordinates, [
+        ...(map.get(r.coordinates) ?? []),
+        {
+          followedArtifactId: r.id,
+          userId: r.userId,
+          currentVersion: r.currentVersion,
+          includePrereleases: r.user.preferences?.includePrereleases ?? false,
+          usedIn: usedIn.get(`${r.userId}\n${r.coordinates}`) ?? [],
+        },
+      ]);
+    }
+    return map;
   }
 
   async getKnownVersions(ecosystem: Ecosystem, coordinates: string): Promise<Set<string>> {

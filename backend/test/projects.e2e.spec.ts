@@ -218,3 +218,86 @@ describe('projects management', () => {
     expect(await prisma.followedArtifact.count({ where: { userId: 'u1' } })).toBe(1);
   });
 });
+
+describe('versions used, newer-only option and orphans', () => {
+  it('flags dependencies whose used version is behind the latest one', async () => {
+    await importProject({
+      projectName: 'p',
+      sources: [
+        {
+          ...BACK,
+          dependencies: [
+            { coordinates: 'org.springframework.boot:spring-boot-starter-parent', version: '4.0.9', scope: 'parent' },
+          ],
+        },
+        FRONT,
+      ],
+      follow: [
+        { ecosystem: 'MAVEN', coordinates: 'org.springframework.boot:spring-boot-starter-parent' },
+        { ecosystem: 'NPM', coordinates: '@angular/core' },
+        { ecosystem: 'NPM', coordinates: 'vitest' },
+      ],
+    });
+    const deps = (await projects())[0].sources.flatMap((s: any) => s.dependencies);
+    const outdated = Object.fromEntries(deps.map((d: any) => [d.coordinates, d.outdated]));
+    // 4.0.9 used, 4.1.2 out; 22.2.3 is the latest; vitest has no exact version (range only)
+    expect(outdated).toEqual({
+      'org.springframework.boot:spring-boot-starter-parent': true,
+      '@angular/core': false,
+      vitest: false,
+    });
+  });
+
+  it('sets the newer-only option', async () => {
+    const { projectId } = (await importProject({ projectName: 'p', sources: [], follow: [] })).body;
+    const res = await api().patch(`/api/projects/${projectId}`).set(auth).send({ notifyNewerOnly: true });
+    expect(res.body).toMatchObject({ name: 'p', notifyNewerOnly: true });
+    expect((await projects())[0].notifyNewerOnly).toBe(true);
+    expect((await api().patch(`/api/projects/${projectId}`).set(auth).send({ notifyNewerOnly: 'yes' })).status).toBe(
+      400,
+    );
+  });
+
+  it('returns the follows a re-import leaves unused by any project', async () => {
+    const follow = [
+      { ecosystem: 'NPM', coordinates: '@angular/core' },
+      { ecosystem: 'NPM', coordinates: 'vitest' },
+    ];
+    const { projectId } = (await importProject({ projectName: 'a', sources: [FRONT], follow })).body;
+    // another project still uses vitest
+    await importProject({
+      projectName: 'b',
+      sources: [{ ...FRONT, dependencies: [{ coordinates: 'vitest', scope: 'dev' }] }],
+      follow: [],
+    });
+    const res = await importProject({
+      projectId,
+      sources: [{ ...FRONT, dependencies: [{ coordinates: 'rxjs', scope: 'prod' }] }],
+      follow: [],
+    });
+    expect(res.body.orphans).toEqual([
+      { followedArtifactId: expect.any(String), ecosystem: 'NPM', coordinates: '@angular/core' },
+    ]);
+  });
+
+  it('returns the orphans of a deleted source or project, never unrelated follows', async () => {
+    await api().post('/api/artifacts/follow').set(auth).send({ ecosystem: 'NPM', coordinates: 'react' });
+    const { projectId } = (
+      await importProject({
+        projectName: 'p',
+        sources: [FRONT, BACK],
+        follow: [
+          { ecosystem: 'NPM', coordinates: '@angular/core' },
+          { ecosystem: 'MAVEN', coordinates: 'org.springframework.boot:spring-boot-starter-parent' },
+        ],
+      })
+    ).body;
+    const back = (await projects())[0].sources.find((s: any) => s.label === 'back/pom.xml');
+    const removed = await api().delete(`/api/projects/${projectId}/sources/${back.id}`).set(auth);
+    expect(removed.body.orphans.map((o: any) => o.coordinates)).toEqual([
+      'org.springframework.boot:spring-boot-starter-parent',
+    ]);
+    const deleted = await api().delete(`/api/projects/${projectId}`).set(auth);
+    expect(deleted.body.orphans.map((o: any) => o.coordinates)).toEqual(['@angular/core']);
+  });
+});

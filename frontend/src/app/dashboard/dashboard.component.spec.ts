@@ -114,6 +114,7 @@ describe('DashboardComponent', () => {
       scope: 'prod',
       followedArtifactId: null,
       latestVersion: null,
+      outdated: coordinates === '@angular/core',
     });
     const PROJECTS = [
       {
@@ -144,7 +145,7 @@ describe('DashboardComponent', () => {
     it('links each project with its number of followed artifacts', async () => {
       await render(undefined, undefined, PROJECTS);
       const link = el.querySelector('.projects-card a.chip') as HTMLAnchorElement;
-      expect(link.textContent?.trim()).toBe('shop (2)');
+      expect(link.textContent?.replace(/\s+/g, ' ').trim()).toBe('shop (2) ⬆1');
       expect(link.getAttribute('href')).toBe('/projects/p1');
       expect(el.querySelector('.projects-card a[href="/import"]')).not.toBeNull();
     });

@@ -4,11 +4,12 @@ import { ArtifactsService } from '../artifacts/artifacts.service';
 import { I18nService } from '../core/i18n.service';
 import { ToastService } from '../core/toast.service';
 import { EcoIconComponent } from '../shared/eco-icon.component';
-import { ProjectDependency, ProjectSource, ProjectsService } from './projects.service';
+import { OrphansDialogComponent } from './orphans-dialog.component';
+import { Orphan, ProjectDependency, ProjectSource, ProjectsService } from './projects.service';
 
 @Component({
   selector: 'app-project',
-  imports: [RouterLink, EcoIconComponent],
+  imports: [RouterLink, EcoIconComponent, OrphansDialogComponent],
   template: `
     <p>
       <a routerLink="/">← {{ i18n.t()('project.back') }}</a>
@@ -37,8 +38,18 @@ import { ProjectDependency, ProjectSource, ProjectsService } from './projects.se
       </div>
       <p class="muted">
         {{ i18n.t()('project.summary', { s: '' + p.sources.length, f: '' + followedCount() }) }} ·
+        @if (outdatedCount()) {
+          <span class="outdated-count">{{ i18n.t()('project.outdated', { n: '' + outdatedCount() }) }}</span> ·
+        }
         {{ i18n.t()('project.created', { d: fmtDate(p.createdAt) }) }}
       </p>
+      <label class="option">
+        <input type="checkbox" [checked]="p.notifyNewerOnly" (change)="setNewerOnly($any($event.target).checked)" />
+        <span>
+          {{ i18n.t()('project.newerOnly') }}
+          <span class="muted small">{{ i18n.t()('project.newerOnly.hint') }}</span>
+        </span>
+      </label>
       <div class="actions">
         <a class="btn small" routerLink="/import" [queryParams]="{ project: p.id }">{{
           i18n.t()('project.addFiles')
@@ -85,7 +96,12 @@ import { ProjectDependency, ProjectSource, ProjectsService } from './projects.se
                       <span class="scope" [class]="'scope scope-' + d.scope">{{ d.scope }}</span>
                     </td>
                     <td>{{ d.version ?? d.declared ?? '—' }}</td>
-                    <td>{{ d.latestVersion ?? '—' }}</td>
+                    <td [class.outdated]="d.outdated">
+                      {{ d.latestVersion ?? '—' }}
+                      @if (d.outdated) {
+                        <span [title]="i18n.t()('project.outdated.title')">⬆</span>
+                      }
+                    </td>
                   </tr>
                 }
               </tbody>
@@ -95,8 +111,11 @@ import { ProjectDependency, ProjectSource, ProjectsService } from './projects.se
       } @empty {
         <p class="muted">{{ i18n.t()('project.noSource') }}</p>
       }
-    } @else if (!projects.resource.isLoading()) {
+    } @else if (!projects.resource.isLoading() && !orphans()) {
       <p class="muted">{{ i18n.t()('project.notFound') }}</p>
+    }
+    @if (orphans(); as list) {
+      <app-orphans-dialog [orphans]="list" (done)="afterOrphans()" />
     }
   `,
   styles: `
@@ -164,6 +183,17 @@ import { ProjectDependency, ProjectSource, ProjectsService } from './projects.se
     .coords {
       overflow-wrap: anywhere;
     }
+    .option {
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      margin: 0 0 1rem;
+    }
+    .outdated,
+    .outdated-count {
+      color: #d97706;
+      font-weight: 600;
+    }
     .scope {
       font-size: 0.7rem;
       padding: 0.05rem 0.45rem;
@@ -195,6 +225,15 @@ export class ProjectComponent {
   protected readonly editing = signal(false);
   protected readonly draftName = signal('');
   protected readonly busy = signal(new Set<string>());
+  protected readonly outdatedCount = computed(
+    () =>
+      this.project()
+        ?.sources.flatMap((s) => s.dependencies)
+        .filter((d) => d.outdated).length ?? 0,
+  );
+  /** follows left unused by a deletion, offered for unfollowing */
+  protected readonly orphans = signal<Orphan[] | null>(null);
+  private leaveAfterOrphans = false;
 
   constructor() {
     // always fresh: follows may have changed from the dashboard
@@ -213,8 +252,16 @@ export class ProjectComponent {
     const name = this.draftName().trim();
     if (!name) return;
     try {
-      await this.projects.rename(this.id(), name);
+      await this.projects.update(this.id(), { name });
       this.editing.set(false);
+    } catch (e: any) {
+      this.toast.show(e?.message || 'Error', 'error');
+    }
+  }
+
+  async setNewerOnly(notifyNewerOnly: boolean) {
+    try {
+      await this.projects.update(this.id(), { notifyNewerOnly });
     } catch (e: any) {
       this.toast.show(e?.message || 'Error', 'error');
     }
@@ -240,7 +287,8 @@ export class ProjectComponent {
   async removeSource(source: ProjectSource) {
     if (!confirm(this.i18n.t()('project.removeSource.confirm', { name: source.label }))) return;
     try {
-      await this.projects.removeSource(this.id(), source.id);
+      const { orphans } = await this.projects.removeSource(this.id(), source.id);
+      if (orphans.length) this.orphans.set(orphans);
     } catch (e: any) {
       this.toast.show(e?.message || 'Error', 'error');
     }
@@ -249,11 +297,19 @@ export class ProjectComponent {
   async removeProject() {
     if (!confirm(this.i18n.t()('project.delete.confirm', { name: this.project()?.name ?? '' }))) return;
     try {
-      await this.projects.remove(this.id());
-      await this.router.navigate(['/']);
+      const { orphans } = await this.projects.remove(this.id());
+      this.leaveAfterOrphans = true;
+      if (orphans.length) this.orphans.set(orphans);
+      else await this.router.navigate(['/']);
     } catch (e: any) {
       this.toast.show(e?.message || 'Error', 'error');
     }
+  }
+
+  async afterOrphans() {
+    this.orphans.set(null);
+    this.projects.resource.reload();
+    if (this.leaveAfterOrphans) await this.router.navigate(['/']);
   }
 
   fmtDate(iso: string): string {

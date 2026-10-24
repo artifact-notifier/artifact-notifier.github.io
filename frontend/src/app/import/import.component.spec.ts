@@ -99,7 +99,7 @@ describe('ImportComponent', () => {
     await render(undefined, [{ id: 'f1', ecosystem: 'NPM', coordinates: 'rxjs', currentVersion: null, events: [] }]);
     await pick([file('package.json', PACKAGE_JSON)]);
     expect(el.textContent).toContain('already followed');
-    projectsSvc.importProject.mockResolvedValue({ projectId: 'p9', followed: 1, failed: [] });
+    projectsSvc.importProject.mockResolvedValue({ projectId: 'p9', followed: 1, failed: [], orphans: [] });
     const name = el.querySelector('#project-name') as HTMLInputElement;
     name.value = 'shop';
     name.dispatchEvent(new Event('input'));
@@ -136,7 +136,7 @@ describe('ImportComponent', () => {
   });
 
   it('refuses a name already used and an empty source name', async () => {
-    projects.set([{ id: 'p1', name: 'shop', createdAt: '', sources: [] }]);
+    projects.set([{ id: 'p1', name: 'shop', notifyNewerOnly: false, createdAt: '', sources: [] }]);
     await render();
     await pick([file('package.json', PACKAGE_JSON)]);
     const name = el.querySelector('#project-name') as HTMLInputElement;
@@ -152,6 +152,7 @@ describe('ImportComponent', () => {
       {
         id: 'p1',
         name: 'shop',
+        notifyNewerOnly: false,
         createdAt: '',
         sources: [
           { id: 's1', label: 'package.json', kind: 'package.json', ecosystem: 'NPM', updatedAt: '', dependencies: [] },
@@ -182,6 +183,95 @@ describe('ImportComponent', () => {
     await render();
     await pick([file('package.json', '{oops'), file('notes.txt', 'x'), file('pom.xml', POM)]);
     expect(el.querySelector('.error')!.textContent).toContain('package.json');
+  });
+});
+
+describe('ImportComponent re-import', () => {
+  const projects = signal<Project[]>([]);
+  const projectsSvc = { projects, importProject: vi.fn() };
+  const LOCK = JSON.stringify({
+    lockfileVersion: 3,
+    packages: {
+      '': { dependencies: { '@angular/core': '^22.2.0', rxjs: '~7.8.0' } },
+      'node_modules/@angular/core': { version: '22.3.0' },
+      'node_modules/rxjs': { version: '7.8.2' },
+    },
+  });
+  const dep = (coordinates: string, version: string) => ({
+    coordinates,
+    declared: null,
+    version,
+    scope: 'prod',
+    followedArtifactId: null,
+    latestVersion: null,
+    outdated: false,
+  });
+
+  it('shows what changed since the last import, then offers to drop orphans', async () => {
+    projects.set([
+      {
+        id: 'p1',
+        name: 'shop',
+        notifyNewerOnly: false,
+        createdAt: '',
+        sources: [
+          {
+            id: 's1',
+            label: 'package-lock.json',
+            kind: 'package-lock.json',
+            ecosystem: 'NPM',
+            updatedAt: '',
+            dependencies: [dep('@angular/core', '22.2.3'), dep('zone.js', '0.15.0')],
+          },
+        ],
+      },
+    ]);
+    TestBed.configureTestingModule({
+      imports: [ImportComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ProjectsService, useValue: projectsSvc },
+        { provide: AuthService, useValue: { user: signal(null), authHeaders: () => ({}) } },
+        { provide: PreferencesService, useValue: { resource: { value: signal(undefined), hasValue: () => false } } },
+      ],
+    });
+    const fixture = TestBed.createComponent(ImportComponent);
+    fixture.componentRef.setInput('project', 'p1');
+    TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    TestBed.inject(HttpTestingController).expectOne('/api/artifacts').flush([]);
+    const el: HTMLElement = fixture.nativeElement;
+    const input = el.querySelector('input[type=file][multiple]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [file('package-lock.json', LOCK)], configurable: true });
+    input.dispatchEvent(new Event('change'));
+    for (let i = 0; i < 20 && !el.querySelector('.source-head'); i++) {
+      await new Promise((r) => setTimeout(r, 10));
+      await fixture.whenStable();
+    }
+    const text = el.textContent!;
+    expect(text).toContain('22.2.3 → 22.3.0');
+    expect(el.querySelectorAll('.badge.new')).toHaveLength(2); // version change + rxjs is new
+    expect(el.querySelector('.removed')!.textContent).toContain('zone.js');
+
+    projectsSvc.importProject.mockResolvedValue({
+      projectId: 'p1',
+      followed: 0,
+      failed: [],
+      orphans: [{ followedArtifactId: 'f9', ecosystem: 'NPM', coordinates: 'zone.js' }],
+    });
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    (
+      [...el.querySelectorAll('button')].find((b) => /^\s*Import\s*$/.test(b.textContent!)) as HTMLButtonElement
+    ).click();
+    await fixture.whenStable();
+    expect(el.querySelector('app-orphans-dialog')!.textContent).toContain('zone.js');
+    expect(navigate).not.toHaveBeenCalled();
+    ([...el.querySelectorAll('button')].find((b) => /Keep them/.test(b.textContent!)) as HTMLButtonElement).click();
+    await fixture.whenStable();
+    expect(navigate).toHaveBeenCalledWith(['/projects', 'p1']);
   });
 });
 

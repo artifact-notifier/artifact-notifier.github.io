@@ -3,7 +3,8 @@ import { Ecosystem } from '@prisma/client';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { normalizeCoordinates } from '../artifacts/coordinates';
 import { PrismaService } from '../prisma/prisma.service';
-import { ImportDto } from './projects.dto';
+import { compareVersions } from '../artifacts/versions';
+import { ImportDto, UpdateProjectDto } from './projects.dto';
 
 const MAX_PROJECTS_PER_USER = 100;
 // follows resolve versions from the registries: a few at a time
@@ -37,6 +38,7 @@ export class ProjectsService {
     return projects.map((p) => ({
       id: p.id,
       name: p.name,
+      notifyNewerOnly: p.notifyNewerOnly,
       createdAt: p.createdAt,
       sources: p.sources.map((s) => ({
         id: s.id,
@@ -53,6 +55,8 @@ export class ProjectsService {
             scope: d.scope,
             followedArtifactId: f?.id ?? null,
             latestVersion: f?.currentVersion ?? null,
+            // only exact versions (lockfile, pins) can be compared
+            outdated: !!(f?.currentVersion && d.version && compareVersions(f.currentVersion, d.version) > 0),
           };
         }),
       })),
@@ -61,6 +65,10 @@ export class ProjectsService {
 
   async import(userId: string, dto: ImportDto) {
     const project = await this.resolveProject(userId, dto);
+    const replaced = await this.artifactKeys({
+      projectId: project.id,
+      label: { in: dto.sources.map((s) => s.label) },
+    });
 
     await this.prisma.$transaction(async (tx) => {
       for (const s of dto.sources) {
@@ -86,31 +94,64 @@ export class ProjectsService {
     });
 
     const { followed, failed } = await this.followAll(userId, dto.follow);
-    return { projectId: project.id, followed, failed };
+    return { projectId: project.id, followed, failed, orphans: await this.orphans(userId, replaced) };
   }
 
-  async rename(userId: string, id: string, name: string) {
+  async update(userId: string, id: string, dto: UpdateProjectDto) {
     await this.owned(userId, id);
     try {
-      return await this.prisma.project.update({ where: { id }, data: { name: name.trim() } });
+      return await this.prisma.project.update({
+        where: { id },
+        data: { name: dto.name?.trim(), notifyNewerOnly: dto.notifyNewerOnly },
+      });
     } catch (e: any) {
       if (e?.code === 'P2002') throw new ConflictException('A project with this name already exists');
       throw e;
     }
   }
 
-  /** Deletes the project only: its artifacts stay followed. */
+  /** Deletes the project only: its artifacts stay followed (the orphans are returned, to offer unfollowing). */
   async remove(userId: string, id: string) {
     await this.owned(userId, id);
+    const keys = await this.artifactKeys({ projectId: id });
     await this.prisma.project.delete({ where: { id } });
-    return { success: true };
+    return { orphans: await this.orphans(userId, keys) };
   }
 
   async removeSource(userId: string, projectId: string, sourceId: string) {
     await this.owned(userId, projectId);
+    const keys = await this.artifactKeys({ id: sourceId, projectId });
     const { count } = await this.prisma.projectSource.deleteMany({ where: { id: sourceId, projectId } });
     if (!count) throw new NotFoundException('Source not found');
-    return { success: true };
+    return { orphans: await this.orphans(userId, keys) };
+  }
+
+  /** Artifact keys referenced by the matching sources. */
+  private async artifactKeys(where: { projectId: string; id?: string; label?: { in: string[] } }) {
+    const sources = await this.prisma.projectSource.findMany({ where, include: { dependencies: true } });
+    return new Set(sources.flatMap((s) => s.dependencies.map((d) => key(s.ecosystem, d.coordinates))));
+  }
+
+  /**
+   * Among `formerly` (artifacts some project referenced), the follows no project of
+   * the user references any more: no longer used, so the user may want to drop them.
+   */
+  private async orphans(userId: string, formerly: Set<string>) {
+    if (!formerly.size) return [];
+    const [follows, stillUsed] = await Promise.all([
+      this.prisma.followedArtifact.findMany({
+        where: { userId },
+        select: { id: true, ecosystem: true, coordinates: true },
+      }),
+      this.prisma.projectSource.findMany({
+        where: { project: { userId } },
+        select: { ecosystem: true, dependencies: { select: { coordinates: true } } },
+      }),
+    ]);
+    const used = new Set(stillUsed.flatMap((s) => s.dependencies.map((d) => key(s.ecosystem, d.coordinates))));
+    return follows
+      .filter((f) => formerly.has(key(f.ecosystem, f.coordinates)) && !used.has(key(f.ecosystem, f.coordinates)))
+      .map((f) => ({ followedArtifactId: f.id, ecosystem: f.ecosystem, coordinates: f.coordinates }));
   }
 
   private async resolveProject(userId: string, dto: ImportDto) {

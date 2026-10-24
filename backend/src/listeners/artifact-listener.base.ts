@@ -1,17 +1,10 @@
 import { Logger } from '@nestjs/common';
 import { Ecosystem } from '@prisma/client';
-import { ArtifactsService } from '../artifacts/artifacts.service';
+import { ArtifactsService, FollowedEntry } from '../artifacts/artifacts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PublishedVersion } from '../artifacts/version-sources';
 import { compareVersions, isPrerelease } from '../artifacts/versions';
-
-export interface FollowedEntry {
-  followedArtifactId: string;
-  userId: string;
-  currentVersion: string | null;
-  includePrereleases: boolean;
-}
 
 /**
  * Port of the Deno ArtifactListener base. Listeners poll/stream their ecosystem,
@@ -52,7 +45,7 @@ export abstract class ArtifactListener<T extends string | number> {
 
   async refreshFollowed(): Promise<void> {
     const rows = await this.artifacts.getFollowedCoordinates(this.ecosystem);
-    this.followedMap = rows as unknown as Map<string, FollowedEntry[]>;
+    this.followedMap = rows;
   }
 
   /** Display name for logs only (does not affect logic). */
@@ -140,6 +133,10 @@ export abstract class ArtifactListener<T extends string | number> {
         this.logger.debug(`[${this.ecoLabel}] skip prerelease ${artifactId}@${version} user=${f.userId}`);
         continue;
       }
+      if (notNewerThanUsed(f, version)) {
+        this.logger.debug(`[${this.ecoLabel}] skip ${artifactId}@${version} not newer than used user=${f.userId}`);
+        continue;
+      }
       this.logger.log(
         `[${this.ecoLabel}] new artifact ${artifactId}@${version} user=${f.userId} (current ${current ?? 'none'})`,
       );
@@ -179,4 +176,15 @@ export abstract class ArtifactListener<T extends string | number> {
   }
 
   abstract sync(): Promise<void>;
+}
+
+/**
+ * True when every project of the follower using this artifact asked for newer
+ * versions only and already uses `version` or a later one. A follow used by no
+ * project, or by one project without the option, is always notified.
+ */
+function notNewerThanUsed(f: FollowedEntry, version: string): boolean {
+  return (
+    f.usedIn.length > 0 && f.usedIn.every((p) => p.newerOnly && !!p.version && compareVersions(version, p.version) <= 0)
+  );
 }

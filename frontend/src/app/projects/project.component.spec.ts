@@ -11,6 +11,7 @@ import { Project, ProjectsService } from './projects.service';
 const PROJECT: Project = {
   id: 'p1',
   name: 'shop',
+  notifyNewerOnly: false,
   createdAt: '2026-10-01T00:00:00Z',
   sources: [
     {
@@ -27,6 +28,7 @@ const PROJECT: Project = {
           scope: 'prod',
           followedArtifactId: 'f1',
           latestVersion: '22.3.0',
+          outdated: true,
         },
         {
           coordinates: 'vitest',
@@ -35,6 +37,7 @@ const PROJECT: Project = {
           scope: 'dev',
           followedArtifactId: null,
           latestVersion: null,
+          outdated: false,
         },
       ],
     },
@@ -48,7 +51,7 @@ describe('ProjectComponent', () => {
   const projectsSvc = {
     projects,
     resource: { reload: vi.fn(), isLoading: () => false },
-    rename: vi.fn(),
+    update: vi.fn(),
     remove: vi.fn(),
     removeSource: vi.fn(),
   };
@@ -83,7 +86,7 @@ describe('ProjectComponent', () => {
     localStorage.setItem('locale', 'en');
     projects.set([PROJECT]);
     Object.values(artifacts).forEach((f) => f.mockReset());
-    [projectsSvc.rename, projectsSvc.remove, projectsSvc.removeSource, projectsSvc.resource.reload].forEach((f) =>
+    [projectsSvc.update, projectsSvc.remove, projectsSvc.removeSource, projectsSvc.resource.reload].forEach((f) =>
       f.mockReset(),
     );
     vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -94,8 +97,9 @@ describe('ProjectComponent', () => {
     await render();
     expect(el.querySelector('h1')!.textContent).toContain('shop');
     expect(el.textContent).toContain('1 source(s) · 1 followed artifact(s)');
+    expect(el.querySelector('.outdated-count')!.textContent).toContain('1 behind');
     expect(cells()).toEqual([
-      ['@angular/core', 'prod', '22.2.3', '22.3.0'],
+      ['@angular/core', 'prod', '22.2.3', '22.3.0 ⬆'],
       ['vitest', 'dev', '^5.0.0', '—'],
     ]);
     expect(checkboxes().map((c) => c.checked)).toEqual([true, false]);
@@ -131,10 +135,12 @@ describe('ProjectComponent', () => {
     input.dispatchEvent(new Event('input'));
     (el.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit'));
     await fixture.whenStable();
-    expect(projectsSvc.rename).toHaveBeenCalledWith('p1', 'boutique');
+    expect(projectsSvc.update).toHaveBeenCalledWith('p1', { name: 'boutique' });
   });
 
   it('removes a source and the project after confirmation', async () => {
+    projectsSvc.removeSource.mockResolvedValue({ orphans: [] });
+    projectsSvc.remove.mockResolvedValue({ orphans: [] });
     await render();
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     button(/^\s*Remove\s*$/).click();
@@ -156,5 +162,30 @@ describe('ProjectComponent', () => {
   it('says when the project does not exist', async () => {
     await render('nope');
     expect(el.textContent).toContain('Project not found');
+  });
+
+  it('toggles the newer-only option', async () => {
+    await render();
+    const option = el.querySelector('.option input') as HTMLInputElement;
+    option.checked = true;
+    option.dispatchEvent(new Event('change'));
+    await fixture.whenStable();
+    expect(projectsSvc.update).toHaveBeenCalledWith('p1', { notifyNewerOnly: true });
+  });
+
+  it('offers to unfollow what a deleted project leaves unused, then leaves', async () => {
+    projectsSvc.remove.mockResolvedValue({
+      orphans: [{ followedArtifactId: 'f1', ecosystem: 'NPM', coordinates: '@angular/core' }],
+    });
+    await render();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    button(/Delete project/).click();
+    await fixture.whenStable();
+    expect(el.querySelector('app-orphans-dialog')!.textContent).toContain('@angular/core');
+    expect(navigate).not.toHaveBeenCalled();
+    button(/Keep them/).click();
+    await fixture.whenStable();
+    expect(el.querySelector('app-orphans-dialog')).toBeNull();
+    expect(navigate).toHaveBeenCalledWith(['/']);
   });
 });

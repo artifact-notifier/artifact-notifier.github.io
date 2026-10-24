@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  IsBoolean,
   IsIn,
   IsOptional,
   IsString,
@@ -88,9 +89,14 @@ export class ImportDto {
   follow!: FollowRefDto[];
 }
 
-export class RenameDto {
+export class UpdateProjectDto {
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
-  name!: string;
+  name?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  notifyNewerOnly?: boolean;
 }

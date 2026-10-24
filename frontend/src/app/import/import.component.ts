@@ -5,7 +5,8 @@ import { FollowedArtifact } from '../artifacts/artifacts.service';
 import { ApiConfigService } from '../core/api-config.service';
 import { I18nService } from '../core/i18n.service';
 import { ToastService } from '../core/toast.service';
-import { artifactKey, ProjectsService } from '../projects/projects.service';
+import { OrphansDialogComponent } from '../projects/orphans-dialog.component';
+import { artifactKey, Orphan, ProjectSource, ProjectsService } from '../projects/projects.service';
 import { EcoIconComponent } from '../shared/eco-icon.component';
 import { valueOrUndefined } from '../shared/resource-value';
 import { collectFromDataTransfer, collectFromFileList, CollectResult } from './collect-files';
@@ -22,7 +23,7 @@ interface SourceState {
 
 @Component({
   selector: 'app-import',
-  imports: [RouterLink, EcoIconComponent],
+  imports: [RouterLink, EcoIconComponent, OrphansDialogComponent],
   template: `
     <p>
       <a routerLink="/">← {{ i18n.t()('project.back') }}</a>
@@ -104,6 +105,9 @@ interface SourceState {
         @for (w of s.parsed.warnings; track w) {
           <p class="warn small">{{ w }}</p>
         }
+        @if (removedFrom(s).length) {
+          <p class="small removed">{{ i18n.t()('import.removed', { list: removedFrom(s).join(', ') }) }}</p>
+        }
         <div class="bulk">
           <button type="button" class="link" (click)="setAll(i, true)">{{ i18n.t()('import.all') }}</button>
           <button type="button" class="link" (click)="setAll(i, false)">{{ i18n.t()('import.none') }}</button>
@@ -128,12 +132,24 @@ interface SourceState {
                   @if (isFollowed(d)) {
                     <span class="badge">{{ i18n.t()('import.alreadyFollowed') }}</span>
                   }
+                  @switch (change(s, d)) {
+                    @case ('new') {
+                      <span class="badge new">{{ i18n.t()('import.new') }}</span>
+                    }
+                    @case ('version') {
+                      <span class="badge new">{{ previousVersion(s, d) }} → {{ d.version }}</span>
+                    }
+                  }
                 </label>
               </li>
             }
           </ul>
         }
       </section>
+    }
+
+    @if (orphans(); as list) {
+      <app-orphans-dialog [orphans]="list" (done)="leave()" />
     }
 
     @if (sources().length) {
@@ -245,6 +261,13 @@ interface SourceState {
       background: var(--hover-strong);
       white-space: nowrap;
     }
+    .badge.new {
+      background: #2563eb;
+      color: #fff;
+    }
+    .removed {
+      color: #b45309;
+    }
     .submit {
       position: sticky;
       bottom: 0;
@@ -284,6 +307,8 @@ export class ImportComponent {
   protected readonly result = signal<ParseResult | null>(null);
   protected readonly skipped = signal<string[]>([]);
   protected readonly sources = signal<SourceState[]>([]);
+  protected readonly orphans = signal<Orphan[] | null>(null);
+  private importedProjectId = '';
 
   protected readonly toFollow = computed(() =>
     this.sources().flatMap((s) =>
@@ -334,7 +359,31 @@ export class ImportComponent {
   }
 
   protected replaces(label: string): boolean {
-    return !!this.existing()?.sources.some((s) => s.label === label.trim());
+    return !!this.previous(label);
+  }
+
+  /** The existing source this one replaces (same name in the target project). */
+  private previous(label: string): ProjectSource | undefined {
+    return this.existing()?.sources.find((s) => s.label === label.trim());
+  }
+
+  /** Compared with the replaced source: a new dependency, or a changed exact version. */
+  protected change(s: SourceState, d: ParsedDependency): 'new' | 'version' | null {
+    const prev = this.previous(s.label);
+    if (!prev) return null;
+    const old = prev.dependencies.find((p) => p.coordinates === d.coordinates);
+    if (!old) return 'new';
+    return old.version && d.version && old.version !== d.version ? 'version' : null;
+  }
+
+  protected previousVersion(s: SourceState, d: ParsedDependency): string {
+    return this.previous(s.label)?.dependencies.find((p) => p.coordinates === d.coordinates)?.version ?? '';
+  }
+
+  /** Dependencies of the replaced source that are gone from the new file. */
+  protected removedFrom(s: SourceState): string[] {
+    const now = new Set(s.parsed.dependencies.map((d) => d.coordinates));
+    return (this.previous(s.label)?.dependencies ?? []).map((d) => d.coordinates).filter((c) => !now.has(c));
   }
 
   protected groups(source: ParsedSource) {
@@ -367,6 +416,11 @@ export class ImportComponent {
     );
   }
 
+  async leave() {
+    this.orphans.set(null);
+    await this.router.navigate(['/projects', this.importedProjectId]);
+  }
+
   async submit() {
     const existing = this.existing();
     try {
@@ -392,7 +446,9 @@ export class ImportComponent {
           'error',
         );
       }
-      await this.router.navigate(['/projects', res.projectId]);
+      this.importedProjectId = res.projectId;
+      if (res.orphans.length) this.orphans.set(res.orphans);
+      else await this.leave();
     } catch (e: any) {
       this.toast.show(e?.message || 'Error', 'error');
     }

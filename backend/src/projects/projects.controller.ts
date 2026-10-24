@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { AuthedUser, CurrentUser } from '../auth/decorators';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ImportDto, RenameDto } from './projects.dto';
+import { ImportDto, UpdateProjectDto } from './projects.dto';
 import { ProjectsService } from './projects.service';
 
 @Controller('projects')
@@ -20,8 +20,8 @@ export class ProjectsController {
   }
 
   @Patch(':id')
-  rename(@CurrentUser() user: AuthedUser, @Param('id') id: string, @Body() dto: RenameDto) {
-    return this.projects.rename(user.sub, id, dto.name);
+  update(@CurrentUser() user: AuthedUser, @Param('id') id: string, @Body() dto: UpdateProjectDto) {
+    return this.projects.update(user.sub, id, dto);
   }
 
   @Delete(':id')

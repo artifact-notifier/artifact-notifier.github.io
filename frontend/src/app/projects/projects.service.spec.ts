@@ -42,11 +42,11 @@ describe('ProjectsService', () => {
     expect([...svc.keysByProject().get('p1')!]).toEqual([artifactKey('NPM', 'rxjs'), artifactKey('NPM', 'zone.js')]);
   });
 
-  it('sends the import, rename and deletions with the session, then reloads', async () => {
+  it('sends the import, update and deletions with the session, then reloads', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response('{"projectId":"p1"}'));
     const reload = vi.spyOn(svc.resource, 'reload');
     await svc.importProject({ projectName: 'x', sources: [], follow: [] });
-    await svc.rename('p1', 'y');
+    await svc.update('p1', { name: 'y', notifyNewerOnly: true });
     await svc.removeSource('p1', 's1');
     await svc.remove('p1');
     expect(fetchSpy.mock.calls.map(([url, init]) => `${init!.method} ${url}`)).toEqual([
@@ -63,6 +63,8 @@ describe('ProjectsService', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ message: 'A project with this name already exists' }), { status: 409 }),
     );
-    await expect(svc.rename('p1', 'dup')).rejects.toEqual({ message: 'A project with this name already exists' });
+    await expect(svc.update('p1', { name: 'dup' })).rejects.toEqual({
+      message: 'A project with this name already exists',
+    });
   });
 });

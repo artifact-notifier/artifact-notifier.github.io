@@ -88,4 +88,34 @@ describe('ArtifactListener.handleVersions', () => {
     await listener.handle(['4.1.2'], false);
     expect(notified()).toEqual(['stable:4.1.2', 'pre:4.1.2']);
   });
+
+  describe('projects asking for newer versions only', () => {
+    async function useIn(userId: string, version: string | null, newerOnly: boolean) {
+      const project = await prisma.project.create({
+        data: { userId, name: `p-${userId}-${version}`, notifyNewerOnly: newerOnly },
+      });
+      const source = await prisma.projectSource.create({
+        data: { projectId: project.id, label: 'pom.xml', kind: 'pom.xml', ecosystem: 'MAVEN' },
+      });
+      await prisma.projectDependency.create({ data: { sourceId: source.id, coordinates: C, version, scope: 'prod' } });
+    }
+
+    it('skips versions not newer than the one used', async () => {
+      await useIn('stable', '4.1.2', true);
+      await listener.refreshFollowed();
+      await listener.handle(['4.1.1']);
+      await listener.handle(['4.1.1', '4.0.10', '4.1.3']);
+      expect(notified().filter((n) => n.startsWith('stable:'))).toEqual(['stable:4.1.3']);
+    });
+
+    it('notifies when one of the projects did not ask for it, or the used version is unknown', async () => {
+      await useIn('stable', '4.1.2', true);
+      await useIn('stable', '4.0.9', false);
+      await useIn('pre', null, true);
+      await listener.refreshFollowed();
+      await listener.handle(['4.1.1']);
+      await listener.handle(['4.1.1', '4.0.10']);
+      expect(notified()).toEqual(['stable:4.0.10', 'pre:4.0.10']);
+    });
+  });
 });

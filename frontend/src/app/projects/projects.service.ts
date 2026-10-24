@@ -13,6 +13,8 @@ export interface ProjectDependency {
   scope: string;
   followedArtifactId: string | null;
   latestVersion: string | null;
+  /** an exact used version older than the latest one */
+  outdated: boolean;
 }
 export interface ProjectSource {
   id: string;
@@ -25,6 +27,7 @@ export interface ProjectSource {
 export interface Project {
   id: string;
   name: string;
+  notifyNewerOnly: boolean;
   createdAt: string;
   sources: ProjectSource[];
 }
@@ -40,10 +43,17 @@ export interface ImportRequest {
   }[];
   follow: { ecosystem: ProjectEcosystem; coordinates: string }[];
 }
+/** Follows no project uses any more after a change: offered for unfollowing. */
+export interface Orphan {
+  followedArtifactId: string;
+  ecosystem: ProjectEcosystem;
+  coordinates: string;
+}
 export interface ImportResult {
   projectId: string;
   followed: number;
   failed: { ecosystem: ProjectEcosystem; coordinates: string; reason: string }[];
+  orphans: Orphan[];
 }
 
 /** "ecosystem:coordinates", the identity shared by follows and project dependencies. */
@@ -74,15 +84,15 @@ export class ProjectsService {
     return this.send('POST', '/api/projects/import', body);
   }
 
-  rename(id: string, name: string): Promise<Project> {
-    return this.send('PATCH', `/api/projects/${id}`, { name });
+  update(id: string, changes: { name?: string; notifyNewerOnly?: boolean }): Promise<Project> {
+    return this.send('PATCH', `/api/projects/${id}`, changes);
   }
 
-  remove(id: string): Promise<void> {
+  remove(id: string): Promise<{ orphans: Orphan[] }> {
     return this.send('DELETE', `/api/projects/${id}`);
   }
 
-  removeSource(id: string, sourceId: string): Promise<void> {
+  removeSource(id: string, sourceId: string): Promise<{ orphans: Orphan[] }> {
     return this.send('DELETE', `/api/projects/${id}/sources/${sourceId}`);
   }
 

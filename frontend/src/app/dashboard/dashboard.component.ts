@@ -11,7 +11,7 @@ import { EcosystemSelectComponent } from '../shared/ecosystem-select.component';
 import { ApiConfigService } from '../core/api-config.service';
 import { valueOrUndefined } from '../shared/resource-value';
 import { RouterLink } from '@angular/router';
-import { artifactKey, ProjectsService } from '../projects/projects.service';
+import { artifactKey, Project, ProjectsService } from '../projects/projects.service';
 
 type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
 type FilterEco = 'ALL' | Eco;
@@ -104,7 +104,12 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
       @if (projectsSvc.projects().length) {
         <div class="chip-row">
           @for (p of projectsSvc.projects(); track p.id) {
-            <a class="chip" [routerLink]="['/projects', p.id]">{{ p.name }} ({{ followedIn(p.id) }})</a>
+            <a class="chip" [routerLink]="['/projects', p.id]"
+              >{{ p.name }} ({{ followedIn(p.id) }})
+              @if (outdatedIn(p); as n) {
+                <span class="outdated" [title]="i18n.t()('project.outdated', { n: '' + n })">⬆{{ n }}</span>
+              }
+            </a>
           }
         </div>
       } @else {
@@ -331,6 +336,10 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
     }
     .projects-card a.chip {
       text-decoration: none;
+    }
+    .projects-card .outdated {
+      color: #d97706;
+      font-weight: 600;
     }
     .add-card {
       padding: 1rem 1.25rem;
@@ -783,6 +792,11 @@ export class DashboardComponent {
   followedIn(projectId: string): number {
     const keys = this.projectsSvc.keysByProject().get(projectId);
     return keys ? this.artifacts().filter((a) => keys.has(artifactKey(a.ecosystem, a.coordinates))).length : 0;
+  }
+
+  /** Dependencies of a project whose used version is behind (counted once per artifact). */
+  outdatedIn(p: Project): number {
+    return new Set(p.sources.flatMap((s) => s.dependencies.filter((d) => d.outdated).map((d) => d.coordinates))).size;
   }
 
   countByEco(eco: FilterEco) {

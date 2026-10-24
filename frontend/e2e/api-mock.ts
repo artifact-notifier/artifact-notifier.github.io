@@ -37,6 +37,7 @@ export const PROJECTS = [
   {
     id: 'p1',
     name: 'shop',
+    notifyNewerOnly: false,
     createdAt: '2026-10-20T00:00:00Z',
     sources: [
       {
@@ -53,6 +54,7 @@ export const PROJECTS = [
             scope: 'prod',
             followedArtifactId: 'a2',
             latestVersion: '22.2.3',
+            outdated: false,
           },
           {
             coordinates: 'vitest',
@@ -61,6 +63,7 @@ export const PROJECTS = [
             scope: 'dev',
             followedArtifactId: null,
             latestVersion: null,
+            outdated: false,
           },
         ],
       },
@@ -154,7 +157,7 @@ export async function mockApi(page: Page, { loggedIn, admin = false }: { loggedI
       case '/api/projects':
         return json(route, PROJECTS);
       case '/api/projects/import':
-        return json(route, { projectId: 'p1', followed: 2, failed: [] }, 201);
+        return json(route, { projectId: 'p1', followed: 2, failed: [], orphans: [] }, 201);
       case '/api/admin/stats':
         return admin ? json(route, ADMIN_STATS) : json(route, { statusCode: 403 }, 403);
       case '/api/admin/users':
