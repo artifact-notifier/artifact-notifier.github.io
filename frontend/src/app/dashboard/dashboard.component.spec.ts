@@ -60,7 +60,11 @@ describe('DashboardComponent', () => {
     http.match((r) => r.url.split('?')[0] === url).forEach((r) => r.flush(body));
   }
 
-  async function render(ecosystems: string[] = ['NPM', 'MAVEN', 'PYPI'], artifacts = ARTIFACTS) {
+  async function render(
+    ecosystems: string[] = ['NPM', 'MAVEN', 'PYPI'],
+    artifacts = ARTIFACTS,
+    projects: object[] = [],
+  ) {
     TestBed.configureTestingModule({
       imports: [DashboardComponent],
       providers: [
@@ -80,6 +84,7 @@ describe('DashboardComponent', () => {
     TestBed.tick();
     answer('/api/artifacts/ecosystems', ecosystems);
     answer('/api/artifacts', artifacts);
+    answer('/api/projects', projects);
     answer('/api/artifacts/sync-status', {
       NPM: { lastSync: minutesAgo(0.2) },
       MAVEN: { lastSync: minutesAgo(3.5) },
@@ -100,6 +105,69 @@ describe('DashboardComponent', () => {
   });
 
   afterEach(() => fixture?.destroy());
+
+  describe('projects', () => {
+    const dep = (coordinates: string) => ({
+      coordinates,
+      declared: null,
+      version: null,
+      scope: 'prod',
+      followedArtifactId: null,
+      latestVersion: null,
+    });
+    const PROJECTS = [
+      {
+        id: 'p1',
+        name: 'shop',
+        createdAt: '2026-10-01T00:00:00Z',
+        sources: [
+          {
+            id: 's1',
+            label: 'front/package.json',
+            kind: 'package.json',
+            ecosystem: 'NPM',
+            updatedAt: '',
+            dependencies: [dep('@angular/core')],
+          },
+          {
+            id: 's2',
+            label: 'back/pom.xml',
+            kind: 'pom.xml',
+            ecosystem: 'MAVEN',
+            updatedAt: '',
+            dependencies: [dep('org.springframework.boot:spring-boot')],
+          },
+        ],
+      },
+    ];
+
+    it('links each project with its number of followed artifacts', async () => {
+      await render(undefined, undefined, PROJECTS);
+      const link = el.querySelector('.projects-card a.chip') as HTMLAnchorElement;
+      expect(link.textContent?.trim()).toBe('shop (2)');
+      expect(link.getAttribute('href')).toBe('/projects/p1');
+      expect(el.querySelector('.projects-card a[href="/import"]')).not.toBeNull();
+    });
+
+    it('invites to import when there is no project yet', async () => {
+      await render();
+      expect(el.querySelector('.projects-card a.chip')).toBeNull();
+      expect(el.querySelector('select[aria-label]')).toBeNull();
+    });
+
+    it('filters the list by project, or outside any project', async () => {
+      await render(undefined, undefined, PROJECTS);
+      const select = el.querySelector('.toolbar-right select') as HTMLSelectElement;
+      select.value = 'p1';
+      select.dispatchEvent(new Event('change'));
+      await settle();
+      expect(rows()).toEqual(['@angular/core', 'org.springframework.boot:spring-boot']);
+      select.value = 'NONE';
+      select.dispatchEvent(new Event('change'));
+      await settle();
+      expect(rows()).toEqual(['django']);
+    });
+  });
 
   describe('list', () => {
     it('shows the followed artifacts sorted by name, with the sync status', async () => {

@@ -6,6 +6,7 @@ import { Ecosystem } from '@prisma/client';
 import { ArtifactsService } from '../artifacts/artifacts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { normalizeCoordinates } from '../artifacts/coordinates';
 
 const URL = 'https://pypi.org/rss/updates.xml';
 const XMLRPC_URL = 'https://pypi.org/pypi';
@@ -70,7 +71,7 @@ export class PypiArtifactListener extends ArtifactListener<number> implements On
         if (published.getTime() > latest) {
           this.logger.debug(`[PyPI] checking ${name}@${version} published=${published.toISOString()}`);
           maxTs = Math.max(maxTs, published.getTime());
-          await this.handleArtifact(name, version, published);
+          await this.handleArtifact(normalizeCoordinates(Ecosystem.PYPI, name), version, published);
           newCount++;
         } else {
           skippedOld++;
@@ -121,7 +122,7 @@ export class PypiArtifactListener extends ArtifactListener<number> implements On
     for (const [name, version, ts] of fresh) {
       const published = new Date(ts * 1000);
       this.logger.debug(`[PyPI] catch-up ${name}@${version} published=${published.toISOString()}`);
-      await this.handleArtifact(name, version, published);
+      await this.handleArtifact(normalizeCoordinates(Ecosystem.PYPI, name), version, published);
     }
     const maxSerial = events.reduce((m, [, , , , s]) => Math.max(m, s), sinceSerial);
     await this.storeSerial(maxSerial);

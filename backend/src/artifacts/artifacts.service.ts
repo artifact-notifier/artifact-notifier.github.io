@@ -4,8 +4,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Ecosystem } from '@prisma/client';
 import { fetchAllVersions } from './version-sources';
 import { pickCurrentVersion } from './versions';
+import { normalizeCoordinates } from './coordinates';
 
-const MAX_FOLLOWS_PER_USER = 200;
+// projects import many dependencies at once
+const MAX_FOLLOWS_PER_USER = 500;
 
 @Injectable()
 export class ArtifactsService {
@@ -25,7 +27,8 @@ export class ArtifactsService {
     return this.isTestEnabled() ? [...base, Ecosystem.TEST] : base;
   }
 
-  async follow(userId: string, ecosystem: Ecosystem, coordinates: string) {
+  async follow(userId: string, ecosystem: Ecosystem, rawCoordinates: string) {
+    const coordinates = normalizeCoordinates(ecosystem, rawCoordinates);
     if (ecosystem === Ecosystem.TEST && !this.isTestEnabled()) {
       throw new BadRequestException('TEST ecosystem disabled in production');
     }

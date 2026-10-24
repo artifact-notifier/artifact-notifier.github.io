@@ -105,14 +105,14 @@ describe('following real ecosystems', () => {
 
   it('caps the number of followed artifacts', async () => {
     await prisma.followedArtifact.createMany({
-      data: Array.from({ length: 200 }, (_, i) => ({ userId: 'u1', ecosystem: 'TEST' as const, coordinates: `p${i}` })),
+      data: Array.from({ length: 500 }, (_, i) => ({ userId: 'u1', ecosystem: 'TEST' as const, coordinates: `p${i}` })),
     });
     const res = await api()
       .post('/api/artifacts/follow')
       .set(auth)
       .send({ ecosystem: 'TEST', coordinates: 'one-more' });
     expect(res.status).toBe(400);
-    expect(res.body.message).toContain('200');
+    expect(res.body.message).toContain('500');
   });
 });
 

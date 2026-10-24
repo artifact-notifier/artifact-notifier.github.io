@@ -2,6 +2,9 @@ import { PrismaClient } from '@prisma/client';
 
 /** Empties every table, children first (SQLite FKs). */
 export async function resetDb(prisma: PrismaClient) {
+  await prisma.projectDependency.deleteMany();
+  await prisma.projectSource.deleteMany();
+  await prisma.project.deleteMany();
   await prisma.notificationDelivery.deleteMany();
   await prisma.artifactVersionEvent.deleteMany();
   await prisma.followedArtifact.deleteMany();

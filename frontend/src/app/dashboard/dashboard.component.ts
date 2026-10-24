@@ -10,6 +10,8 @@ import { EcoIconComponent } from '../shared/eco-icon.component';
 import { EcosystemSelectComponent } from '../shared/ecosystem-select.component';
 import { ApiConfigService } from '../core/api-config.service';
 import { valueOrUndefined } from '../shared/resource-value';
+import { RouterLink } from '@angular/router';
+import { artifactKey, ProjectsService } from '../projects/projects.service';
 
 type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
 type FilterEco = 'ALL' | Eco;
@@ -17,7 +19,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, FormsModule, EcoIconComponent, EcosystemSelectComponent],
+  imports: [CommonModule, FormsModule, RouterLink, EcoIconComponent, EcosystemSelectComponent],
   template: `
     <h1>{{ i18n.t()('dashboard.title') }}</h1>
     @if (syncStatus(); as s) {
@@ -94,6 +96,22 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
       </div>
     </div>
 
+    <div class="card projects-card">
+      <div class="projects-head">
+        <h3>📁 {{ i18n.t()('projects.title') }}</h3>
+        <a class="btn small" routerLink="/import">{{ i18n.t()('projects.import') }}</a>
+      </div>
+      @if (projectsSvc.projects().length) {
+        <div class="chip-row">
+          @for (p of projectsSvc.projects(); track p.id) {
+            <a class="chip" [routerLink]="['/projects', p.id]">{{ p.name }} ({{ followedIn(p.id) }})</a>
+          }
+        </div>
+      } @else {
+        <p class="muted" style="font-size:.85rem;margin:.25rem 0 0">{{ i18n.t()('projects.empty') }}</p>
+      }
+    </div>
+
     <!-- 🧪 Dev test mode: isolated, does not affect npm/maven/pypi — managed via NODE_ENV on the backend -->
     @if (isTestEnabled()) {
       <div class="card test-card">
@@ -143,6 +161,20 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
           }
         </div>
         <div class="toolbar-right">
+          @if (projectsSvc.projects().length) {
+            <select
+              class="filter-input"
+              [ngModel]="filterProject()"
+              (ngModelChange)="filterProject.set($event)"
+              [attr.aria-label]="i18n.t()('projects.filter')"
+            >
+              <option value="ALL">{{ i18n.t()('projects.filter.all') }}</option>
+              @for (p of projectsSvc.projects(); track p.id) {
+                <option [value]="p.id">📁 {{ p.name }}</option>
+              }
+              <option value="NONE">{{ i18n.t()('projects.filter.none') }}</option>
+            </select>
+          }
           <input
             class="filter-input"
             [ngModel]="filterText()"
@@ -285,6 +317,21 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
     }
   `,
   styles: `
+    .projects-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .projects-head h3 {
+      margin: 0;
+    }
+    .projects-card .chip-row {
+      margin-top: 0.5rem;
+    }
+    .projects-card a.chip {
+      text-decoration: none;
+    }
     .add-card {
       padding: 1rem 1.25rem;
     }
@@ -632,6 +679,9 @@ export class DashboardComponent {
   protected readonly activeIndex = signal(0);
   protected readonly pending = signal<FollowedArtifact | null>(null);
 
+  protected readonly projectsSvc = inject(ProjectsService);
+  /** 'ALL', 'NONE' (followed outside any project) or a project id */
+  protected readonly filterProject = signal('ALL');
   protected readonly filterEco = signal<FilterEco>('ALL');
   protected readonly filterText = signal('');
   protected readonly sortBy = signal<SortBy>('name_asc');
@@ -664,6 +714,15 @@ export class DashboardComponent {
     let list = this.artifacts();
     const fe = this.filterEco();
     if (fe !== 'ALL') list = list.filter((a) => a.ecosystem === fe);
+    const fp = this.filterProject();
+    if (fp !== 'ALL') {
+      const keys = this.projectsSvc.keysByProject();
+      const inProject = (a: FollowedArtifact) =>
+        fp === 'NONE'
+          ? ![...keys.values()].some((k) => k.has(artifactKey(a.ecosystem, a.coordinates)))
+          : !!keys.get(fp)?.has(artifactKey(a.ecosystem, a.coordinates));
+      list = list.filter(inProject);
+    }
     const txt = this.filterText().trim().toLowerCase();
     if (txt) list = list.filter((a) => a.coordinates.toLowerCase().includes(txt));
     const sort = this.sortBy();
@@ -718,6 +777,12 @@ export class DashboardComponent {
     const lang = this.i18n.lang();
     const localeMap: Record<string, string> = { fr: 'fr-FR', en: 'en-US', es: 'es-ES', de: 'de-DE', zh: 'zh-CN' };
     return localeMap[lang] ?? 'en-US';
+  }
+
+  /** Followed artifacts of a project (a dependency may be listed by several of its sources). */
+  followedIn(projectId: string): number {
+    const keys = this.projectsSvc.keysByProject().get(projectId);
+    return keys ? this.artifacts().filter((a) => keys.has(artifactKey(a.ecosystem, a.coordinates))).length : 0;
   }
 
   countByEco(eco: FilterEco) {

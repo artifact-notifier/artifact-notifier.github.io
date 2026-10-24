@@ -103,3 +103,49 @@ test.describe('admin', () => {
     await expect(page).toHaveURL(/#\/$/);
   });
 });
+
+test.describe('projects', () => {
+  test.beforeEach(({ page }) => mockApi(page, { loggedIn: true }));
+
+  test('imports dependency files into a project', async ({ page }) => {
+    await page.goto('/#/import');
+    await page.locator('input[type=file][multiple]').setInputFiles([
+      {
+        name: 'package.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(
+          JSON.stringify({ dependencies: { '@angular/core': '^22.2.0' }, devDependencies: { vitest: '^5.0.0' } }),
+        ),
+      },
+      {
+        name: 'pom.xml',
+        mimeType: 'application/xml',
+        buffer: Buffer.from(
+          '<project><parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>4.1.2</version></parent></project>',
+        ),
+      },
+    ]);
+    await expect(page.locator('input.label')).toHaveCount(2);
+    await expect(page.getByText('org.springframework.boot:spring-boot-starter-parent')).toBeVisible();
+    await expect(page.getByText('déjà suivie')).toBeVisible();
+    expect(await horizontalOverflow(page)).toBe(0);
+
+    await page.locator('#project-name').fill('shop-2');
+    const importRequest = page.waitForRequest('**/api/projects/import');
+    await page.getByRole('button', { name: 'Importer', exact: true }).click();
+    const body = (await importRequest).postDataJSON();
+    // shipped dependencies only (not vitest), and not @angular/core: already followed
+    expect(body.follow.map((f: { coordinates: string }) => f.coordinates)).toEqual([
+      'org.springframework.boot:spring-boot-starter-parent',
+    ]);
+    await expect(page).toHaveURL(/#\/projects\/p1$/);
+  });
+
+  test('a project page lists its dependencies', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.projects-card').getByRole('link', { name: /shop/ }).click();
+    await expect(page.getByRole('heading', { level: 1, name: /shop/ })).toBeVisible();
+    await expect(page.getByText('vitest')).toBeVisible();
+    expect(await horizontalOverflow(page)).toBe(0);
+  });
+});

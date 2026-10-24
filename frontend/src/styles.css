@@ -71,6 +71,11 @@ button {
   background: #2563eb;
   color: #fff;
 }
+/* links styled as buttons */
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+}
 .btn.secondary {
   background: #4b5563;
 }

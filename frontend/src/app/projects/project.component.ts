@@ -1,0 +1,262 @@
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { ArtifactsService } from '../artifacts/artifacts.service';
+import { I18nService } from '../core/i18n.service';
+import { ToastService } from '../core/toast.service';
+import { EcoIconComponent } from '../shared/eco-icon.component';
+import { ProjectDependency, ProjectSource, ProjectsService } from './projects.service';
+
+@Component({
+  selector: 'app-project',
+  imports: [RouterLink, EcoIconComponent],
+  template: `
+    <p>
+      <a routerLink="/">← {{ i18n.t()('project.back') }}</a>
+    </p>
+    @if (project(); as p) {
+      <div class="head">
+        @if (editing()) {
+          <form class="rename" (submit)="$event.preventDefault(); rename()">
+            <input
+              [value]="draftName()"
+              (input)="draftName.set($any($event.target).value)"
+              [attr.aria-label]="i18n.t()('project.name')"
+              maxlength="100"
+            />
+            <button class="btn small" type="submit">{{ i18n.t()('project.save') }}</button>
+            <button class="btn secondary small" type="button" (click)="editing.set(false)">
+              {{ i18n.t()('project.cancel') }}
+            </button>
+          </form>
+        } @else {
+          <h1>📁 {{ p.name }}</h1>
+          <button class="btn secondary small" type="button" (click)="startRename(p.name)">
+            {{ i18n.t()('project.rename') }}
+          </button>
+        }
+      </div>
+      <p class="muted">
+        {{ i18n.t()('project.summary', { s: '' + p.sources.length, f: '' + followedCount() }) }} ·
+        {{ i18n.t()('project.created', { d: fmtDate(p.createdAt) }) }}
+      </p>
+      <div class="actions">
+        <a class="btn small" routerLink="/import" [queryParams]="{ project: p.id }">{{
+          i18n.t()('project.addFiles')
+        }}</a>
+        <button class="btn danger small" type="button" (click)="removeProject()">
+          {{ i18n.t()('project.delete') }}
+        </button>
+      </div>
+
+      @for (s of p.sources; track s.id) {
+        <section class="card">
+          <div class="source-head">
+            <h3><eco-icon [ecosystem]="s.ecosystem" /> {{ s.label }}</h3>
+            <span class="muted small">{{ s.kind }} · {{ fmtDate(s.updatedAt) }}</span>
+            <button class="btn secondary small" type="button" (click)="removeSource(s)">
+              {{ i18n.t()('project.removeSource') }}
+            </button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>{{ i18n.t()('project.col.follow') }}</th>
+                  <th>{{ i18n.t()('project.col.dependency') }}</th>
+                  <th>{{ i18n.t()('project.col.scope') }}</th>
+                  <th>{{ i18n.t()('project.col.used') }}</th>
+                  <th>{{ i18n.t()('project.col.latest') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (d of s.dependencies; track d.coordinates) {
+                  <tr [class.followed]="d.followedArtifactId">
+                    <td>
+                      <input
+                        type="checkbox"
+                        [checked]="!!d.followedArtifactId"
+                        [disabled]="busy().has(d.coordinates)"
+                        (change)="toggle(s, d)"
+                        [attr.aria-label]="i18n.t()('project.follow', { name: d.coordinates })"
+                      />
+                    </td>
+                    <td class="coords">{{ d.coordinates }}</td>
+                    <td>
+                      <span class="scope" [class]="'scope scope-' + d.scope">{{ d.scope }}</span>
+                    </td>
+                    <td>{{ d.version ?? d.declared ?? '—' }}</td>
+                    <td>{{ d.latestVersion ?? '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      } @empty {
+        <p class="muted">{{ i18n.t()('project.noSource') }}</p>
+      }
+    } @else if (!projects.resource.isLoading()) {
+      <p class="muted">{{ i18n.t()('project.notFound') }}</p>
+    }
+  `,
+  styles: `
+    .head,
+    .actions,
+    .source-head,
+    .rename {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .head h1 {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .actions {
+      margin-bottom: 1rem;
+    }
+    .rename input {
+      flex: 1 1 200px;
+      min-width: 0;
+      font-size: 1.2rem;
+      padding: 0.3rem 0.5rem;
+    }
+    .source-head h3 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      overflow-wrap: anywhere;
+    }
+    .source-head button {
+      margin-left: auto;
+    }
+    .muted {
+      color: var(--muted);
+    }
+    .small {
+      font-size: 0.8rem;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th,
+    td {
+      text-align: left;
+      padding: 0.35rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tr:not(.followed) .coords {
+      color: var(--muted);
+    }
+    .coords {
+      overflow-wrap: anywhere;
+    }
+    .scope {
+      font-size: 0.7rem;
+      padding: 0.05rem 0.45rem;
+      border-radius: 999px;
+      background: var(--hover-strong);
+      white-space: nowrap;
+    }
+  `,
+})
+export class ProjectComponent {
+  /** route param (withComponentInputBinding) */
+  readonly id = input.required<string>();
+
+  protected readonly i18n = inject(I18nService);
+  protected readonly projects = inject(ProjectsService);
+  private readonly artifacts = inject(ArtifactsService);
+  private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
+
+  protected readonly project = computed(() => this.projects.projects().find((p) => p.id === this.id()));
+  protected readonly followedCount = computed(
+    () =>
+      new Set(
+        this.project()?.sources.flatMap((s) =>
+          s.dependencies.filter((d) => d.followedArtifactId).map((d) => d.followedArtifactId),
+        ),
+      ).size,
+  );
+  protected readonly editing = signal(false);
+  protected readonly draftName = signal('');
+  protected readonly busy = signal(new Set<string>());
+
+  constructor() {
+    // always fresh: follows may have changed from the dashboard
+    effect(() => {
+      this.id();
+      this.projects.resource.reload();
+    });
+  }
+
+  startRename(name: string) {
+    this.draftName.set(name);
+    this.editing.set(true);
+  }
+
+  async rename() {
+    const name = this.draftName().trim();
+    if (!name) return;
+    try {
+      await this.projects.rename(this.id(), name);
+      this.editing.set(false);
+    } catch (e: any) {
+      this.toast.show(e?.message || 'Error', 'error');
+    }
+  }
+
+  async toggle(source: ProjectSource, dep: ProjectDependency) {
+    this.busy.update((b) => new Set(b).add(dep.coordinates));
+    try {
+      if (dep.followedArtifactId) await this.artifacts.unfollow(dep.followedArtifactId);
+      else await this.artifacts.follow(source.ecosystem, dep.coordinates);
+      this.projects.resource.reload();
+    } catch (e: any) {
+      this.toast.show(e?.error?.message || 'Error', 'error');
+    } finally {
+      this.busy.update((b) => {
+        const next = new Set(b);
+        next.delete(dep.coordinates);
+        return next;
+      });
+    }
+  }
+
+  async removeSource(source: ProjectSource) {
+    if (!confirm(this.i18n.t()('project.removeSource.confirm', { name: source.label }))) return;
+    try {
+      await this.projects.removeSource(this.id(), source.id);
+    } catch (e: any) {
+      this.toast.show(e?.message || 'Error', 'error');
+    }
+  }
+
+  async removeProject() {
+    if (!confirm(this.i18n.t()('project.delete.confirm', { name: this.project()?.name ?? '' }))) return;
+    try {
+      await this.projects.remove(this.id());
+      await this.router.navigate(['/']);
+    } catch (e: any) {
+      this.toast.show(e?.message || 'Error', 'error');
+    }
+  }
+
+  fmtDate(iso: string): string {
+    return new Date(iso).toLocaleDateString(this.i18n.lang());
+  }
+}

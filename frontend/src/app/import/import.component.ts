@@ -1,0 +1,406 @@
+import { Component, computed, inject, input, signal } from '@angular/core';
+import { httpResource } from '@angular/common/http';
+import { Router, RouterLink } from '@angular/router';
+import { FollowedArtifact } from '../artifacts/artifacts.service';
+import { ApiConfigService } from '../core/api-config.service';
+import { I18nService } from '../core/i18n.service';
+import { ToastService } from '../core/toast.service';
+import { artifactKey, ProjectsService } from '../projects/projects.service';
+import { EcoIconComponent } from '../shared/eco-icon.component';
+import { valueOrUndefined } from '../shared/resource-value';
+import { collectFromDataTransfer, collectFromFileList, CollectResult } from './collect-files';
+import { DepScope, isSupportedFile, ParsedDependency, ParsedSource, ParseResult, parseProjectFiles } from './parsers';
+
+/** Checked by default: what the project actually ships with. */
+const DEFAULT_SCOPES = new Set<DepScope>(['prod', 'parent', 'bom']);
+
+interface SourceState {
+  parsed: ParsedSource;
+  label: string;
+  checked: Set<string>;
+}
+
+@Component({
+  selector: 'app-import',
+  imports: [RouterLink, EcoIconComponent],
+  template: `
+    <p>
+      <a routerLink="/">← {{ i18n.t()('project.back') }}</a>
+    </p>
+    <h1>📦 {{ i18n.t()('import.title') }}</h1>
+    <p class="muted">{{ i18n.t()('import.privacy') }}</p>
+
+    <section class="card">
+      <h3>{{ i18n.t()('import.target') }}</h3>
+      @if (existing(); as p) {
+        <p>
+          {{ i18n.t()('import.into', { name: p.name }) }}
+          <span class="muted small">{{ i18n.t()('import.replaceHint') }}</span>
+        </p>
+      } @else {
+        <label for="project-name">{{ i18n.t()('import.newName') }}</label>
+        <input
+          id="project-name"
+          class="name"
+          [value]="projectName()"
+          (input)="projectName.set($any($event.target).value)"
+          maxlength="100"
+        />
+        @if (nameTaken()) {
+          <p class="error small">{{ i18n.t()('import.nameTaken') }}</p>
+        }
+      }
+    </section>
+
+    <section
+      class="card drop"
+      [class.over]="dragOver()"
+      (dragover)="$event.preventDefault(); dragOver.set(true)"
+      (dragleave)="dragOver.set(false)"
+      (drop)="onDrop($event)"
+    >
+      <p>{{ i18n.t()('import.drop') }}</p>
+      <p class="muted small">{{ i18n.t()('import.formats') }}</p>
+      <div class="pickers">
+        <label class="btn small">
+          {{ i18n.t()('import.pickFiles') }}
+          <input type="file" multiple hidden (change)="onPick($event)" />
+        </label>
+        <label class="btn secondary small">
+          {{ i18n.t()('import.pickFolder') }}
+          <input type="file" webkitdirectory hidden (change)="onPick($event)" />
+        </label>
+      </div>
+      @if (parsing()) {
+        <p class="muted">{{ i18n.t()('import.parsing') }}</p>
+      }
+    </section>
+
+    @if (result(); as r) {
+      @for (e of r.errors; track e.path) {
+        <p class="error small">⚠️ {{ e.path }} : {{ e.message }}</p>
+      }
+      @if (r.ignored.length || skipped().length) {
+        <p class="muted small">{{ i18n.t()('import.ignored', { files: [...r.ignored, ...skipped()].join(', ') }) }}</p>
+      }
+    }
+
+    @for (s of sources(); track s.parsed.dir + s.parsed.kind + s.parsed.label; let i = $index) {
+      <section class="card">
+        <div class="source-head">
+          <eco-icon [ecosystem]="s.parsed.ecosystem" />
+          <input
+            class="label"
+            [value]="s.label"
+            (input)="setLabel(i, $any($event.target).value)"
+            [attr.aria-label]="i18n.t()('import.sourceLabel')"
+            maxlength="200"
+          />
+          @if (replaces(s.label)) {
+            <span class="badge">{{ i18n.t()('import.replaces') }}</span>
+          }
+        </div>
+        <p class="muted small">{{ s.parsed.files.join(' + ') }}</p>
+        @for (w of s.parsed.warnings; track w) {
+          <p class="warn small">{{ w }}</p>
+        }
+        <div class="bulk">
+          <button type="button" class="link" (click)="setAll(i, true)">{{ i18n.t()('import.all') }}</button>
+          <button type="button" class="link" (click)="setAll(i, false)">{{ i18n.t()('import.none') }}</button>
+          <span class="muted small">{{
+            i18n.t()('import.selected', { n: '' + s.checked.size, t: '' + s.parsed.dependencies.length })
+          }}</span>
+        </div>
+        @for (group of groups(s.parsed); track group.scope) {
+          <h4>{{ group.scope }} ({{ group.deps.length }})</h4>
+          <ul class="deps">
+            @for (d of group.deps; track d.coordinates) {
+              <li>
+                <label>
+                  <input
+                    type="checkbox"
+                    [checked]="s.checked.has(d.coordinates) || isFollowed(d)"
+                    [disabled]="isFollowed(d)"
+                    (change)="toggle(i, d.coordinates)"
+                  />
+                  <span class="coords">{{ d.coordinates }}</span>
+                  <span class="muted small">{{ d.version ?? d.declared ?? '' }}</span>
+                  @if (isFollowed(d)) {
+                    <span class="badge">{{ i18n.t()('import.alreadyFollowed') }}</span>
+                  }
+                </label>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+
+    @if (sources().length) {
+      <div class="submit">
+        <span class="muted">{{
+          i18n.t()('import.summary', { s: '' + sources().length, n: '' + toFollow().length })
+        }}</span>
+        <button class="btn" type="button" [disabled]="!canSubmit()" (click)="submit()">
+          {{ i18n.t()('import.submit') }}
+        </button>
+      </div>
+    }
+  `,
+  styles: `
+    .muted {
+      color: var(--muted);
+    }
+    .small {
+      font-size: 0.8rem;
+    }
+    .error {
+      color: #dc2626;
+    }
+    .warn {
+      color: #b45309;
+      margin: 0.15rem 0;
+    }
+    h3,
+    h4 {
+      margin: 0.5rem 0;
+    }
+    h4 {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+    input.name,
+    input.label {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.4rem 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--input-bg);
+      color: var(--text);
+    }
+    .drop {
+      border: 2px dashed var(--border);
+      text-align: center;
+    }
+    .drop.over {
+      border-color: #2563eb;
+      background: var(--hover-strong);
+    }
+    .pickers {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+    .pickers label {
+      cursor: pointer;
+    }
+    .source-head {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .source-head input {
+      flex: 1;
+      min-width: 0;
+    }
+    .bulk {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      margin: 0.5rem 0;
+    }
+    .link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #2563eb;
+      cursor: pointer;
+    }
+    .deps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      columns: 2 280px;
+    }
+    .deps li {
+      break-inside: avoid;
+      padding: 0.1rem 0;
+    }
+    .deps label {
+      display: flex;
+      align-items: baseline;
+      gap: 0.4rem;
+    }
+    .coords {
+      overflow-wrap: anywhere;
+    }
+    .badge {
+      font-size: 0.65rem;
+      padding: 0.05rem 0.4rem;
+      border-radius: 999px;
+      background: var(--hover-strong);
+      white-space: nowrap;
+    }
+    .submit {
+      position: sticky;
+      bottom: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      background: var(--bg);
+    }
+  `,
+})
+export class ImportComponent {
+  /** ?project=<id>: add/replace sources of an existing project */
+  readonly project = input<string>();
+
+  protected readonly i18n = inject(I18nService);
+  private readonly projects = inject(ProjectsService);
+  private readonly api = inject(ApiConfigService);
+  private readonly toast = inject(ToastService);
+  private readonly router = inject(Router);
+
+  private readonly followsRes = httpResource<FollowedArtifact[]>(() => ({ url: this.api.apiUrl('/api/artifacts') }));
+  private readonly followedKeys = computed(
+    () => new Set((valueOrUndefined(this.followsRes) ?? []).map((f) => artifactKey(f.ecosystem, f.coordinates))),
+  );
+
+  protected readonly existing = computed(() => this.projects.projects().find((p) => p.id === this.project()));
+  protected readonly projectName = signal('');
+  protected readonly nameTaken = computed(() => {
+    const name = this.projectName().trim();
+    return !!name && this.projects.projects().some((p) => p.name === name);
+  });
+  protected readonly dragOver = signal(false);
+  protected readonly parsing = signal(false);
+  protected readonly result = signal<ParseResult | null>(null);
+  protected readonly skipped = signal<string[]>([]);
+  protected readonly sources = signal<SourceState[]>([]);
+
+  protected readonly toFollow = computed(() =>
+    this.sources().flatMap((s) =>
+      s.parsed.dependencies.filter((d) => s.checked.has(d.coordinates) && !this.isFollowed(d)),
+    ),
+  );
+  protected readonly canSubmit = computed(() => {
+    const labels = this.sources().map((s) => s.label.trim());
+    const validLabels = labels.every(Boolean) && new Set(labels).size === labels.length;
+    const target = this.existing() || (this.projectName().trim() && !this.nameTaken());
+    return !!target && validLabels && this.sources().length > 0;
+  });
+
+  async onDrop(event: DragEvent) {
+    event.preventDefault();
+    this.dragOver.set(false);
+    if (event.dataTransfer) await this.load(collectFromDataTransfer(event.dataTransfer, isSupportedFile));
+  }
+
+  async onPick(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files?.length) await this.load(collectFromFileList(input.files, isSupportedFile));
+    input.value = '';
+  }
+
+  private async load(collecting: Promise<CollectResult>) {
+    this.parsing.set(true);
+    try {
+      const { files, skipped } = await collecting;
+      const result = await parseProjectFiles(files);
+      this.result.set(result);
+      this.skipped.set(skipped);
+      this.sources.set(
+        result.sources.map((parsed) => ({
+          parsed,
+          label: parsed.label,
+          checked: new Set(parsed.dependencies.filter((d) => DEFAULT_SCOPES.has(d.scope)).map((d) => d.coordinates)),
+        })),
+      );
+      if (!this.existing() && !this.projectName()) this.projectName.set(defaultProjectName(files.map((f) => f.path)));
+    } finally {
+      this.parsing.set(false);
+    }
+  }
+
+  protected isFollowed(d: ParsedDependency): boolean {
+    return this.followedKeys().has(artifactKey(d.ecosystem, d.coordinates));
+  }
+
+  protected replaces(label: string): boolean {
+    return !!this.existing()?.sources.some((s) => s.label === label.trim());
+  }
+
+  protected groups(source: ParsedSource) {
+    const order: DepScope[] = ['parent', 'bom', 'prod', 'peer', 'optional', 'provided', 'dev', 'test', 'plugin'];
+    return order
+      .map((scope) => ({ scope, deps: source.dependencies.filter((d) => d.scope === scope) }))
+      .filter((g) => g.deps.length);
+  }
+
+  protected setLabel(index: number, label: string) {
+    this.sources.update((list) => list.map((s, i) => (i === index ? { ...s, label } : s)));
+  }
+
+  protected toggle(index: number, coordinates: string) {
+    this.sources.update((list) =>
+      list.map((s, i) => {
+        if (i !== index) return s;
+        const checked = new Set(s.checked);
+        if (!checked.delete(coordinates)) checked.add(coordinates);
+        return { ...s, checked };
+      }),
+    );
+  }
+
+  protected setAll(index: number, on: boolean) {
+    this.sources.update((list) =>
+      list.map((s, i) =>
+        i === index ? { ...s, checked: new Set(on ? s.parsed.dependencies.map((d) => d.coordinates) : []) } : s,
+      ),
+    );
+  }
+
+  async submit() {
+    const existing = this.existing();
+    try {
+      const res = await this.projects.importProject({
+        ...(existing ? { projectId: existing.id } : { projectName: this.projectName().trim() }),
+        sources: this.sources().map((s) => ({
+          label: s.label.trim(),
+          kind: s.parsed.kind,
+          ecosystem: s.parsed.ecosystem,
+          dependencies: s.parsed.dependencies.map((d) => ({
+            coordinates: d.coordinates,
+            declared: d.declared,
+            version: d.version,
+            scope: d.scope,
+          })),
+        })),
+        follow: this.toFollow().map((d) => ({ ecosystem: d.ecosystem, coordinates: d.coordinates })),
+      });
+      this.toast.show(this.i18n.t()('import.done', { n: '' + res.followed }), 'success');
+      if (res.failed.length) {
+        this.toast.show(
+          this.i18n.t()('import.failed', { list: res.failed.map((f) => `${f.coordinates} (${f.reason})`).join(', ') }),
+          'error',
+        );
+      }
+      await this.router.navigate(['/projects', res.projectId]);
+    } catch (e: any) {
+      this.toast.show(e?.message || 'Error', 'error');
+    }
+  }
+}
+
+/** Common top folder of the dropped files ("my-repo/front/package.json" -> "my-repo"), else empty. */
+export function defaultProjectName(paths: string[]): string {
+  const tops = new Set(paths.map((p) => (p.includes('/') ? p.split('/')[0] : '')));
+  return tops.size === 1 ? [...tops][0] : '';
+}

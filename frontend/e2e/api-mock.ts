@@ -33,6 +33,41 @@ const ARTIFACTS = [
   { id: 'a2', ecosystem: 'NPM', coordinates: '@angular/core', currentVersion: '22.2.3', events: [] },
 ];
 
+export const PROJECTS = [
+  {
+    id: 'p1',
+    name: 'shop',
+    createdAt: '2026-10-20T00:00:00Z',
+    sources: [
+      {
+        id: 's1',
+        label: 'shop/front/package.json',
+        kind: 'package.json',
+        ecosystem: 'NPM',
+        updatedAt: '2026-10-20T00:00:00Z',
+        dependencies: [
+          {
+            coordinates: '@angular/core',
+            declared: '^22.2.0',
+            version: '22.2.3',
+            scope: 'prod',
+            followedArtifactId: 'a2',
+            latestVersion: '22.2.3',
+          },
+          {
+            coordinates: 'vitest',
+            declared: '^5.0.0',
+            version: null,
+            scope: 'dev',
+            followedArtifactId: null,
+            latestVersion: null,
+          },
+        ],
+      },
+    ],
+  },
+];
+
 const ADMIN_STATS = {
   users: {
     total: 2,
@@ -116,6 +151,10 @@ export async function mockApi(page: Page, { loggedIn, admin = false }: { loggedI
         return json(route, [{ key: 'google', displayName: 'Google', linked: true }]);
       case '/api/auth/telegram/status':
         return json(route, { linked: false, telegramId: null, telegramUsername: null });
+      case '/api/projects':
+        return json(route, PROJECTS);
+      case '/api/projects/import':
+        return json(route, { projectId: 'p1', followed: 2, failed: [] }, 201);
       case '/api/admin/stats':
         return admin ? json(route, ADMIN_STATS) : json(route, { statusCode: 403 }, 403);
       case '/api/admin/users':
