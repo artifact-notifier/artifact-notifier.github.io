@@ -43,6 +43,8 @@ export function parsePom(content: string, file: string): ManifestResult {
     props.set(p.localName, p.textContent?.trim() ?? '');
   }
   const projectVersion = text(project, 'version') ?? text(parent, 'version');
+  const ownGroup = text(project, 'groupId') ?? text(parent, 'groupId');
+  const ownArtifact = text(project, 'artifactId');
   const builtins: Record<string, string | undefined> = {
     'project.version': projectVersion,
     'pom.version': projectVersion,
@@ -63,6 +65,15 @@ export function parsePom(content: string, file: string): ManifestResult {
     return v;
   };
 
+  /**
+   * A sibling module of the same reactor: same groupId and versioned with the
+   * project's own version placeholder. (A literal equal version is no proof: a
+   * project inheriting groupId and version from a corporate parent would match.
+   * Modules dropped together are matched by coordinates in parseProjectFiles.)
+   */
+  const isSibling = (groupId: string, raw: string | undefined) =>
+    groupId === ownGroup && /^\$\{(project\.|pom\.)?(parent\.)?version\}$/.test(raw ?? '');
+
   const dependencies: ParsedDependency[] = [];
   const warnings: string[] = [];
   const add = (el: Element, scope: DepScope, defaultGroup?: string) => {
@@ -72,14 +83,15 @@ export function parsePom(content: string, file: string): ManifestResult {
       warnings.push(`${file}: dependency ${groupId ?? '?'}:${artifactId ?? '?'} has unresolved coordinates, skipped`);
       return;
     }
-    const declared = resolve(text(el, 'version'));
+    const raw = text(el, 'version');
+    const declared = resolve(raw);
     const exact = declared && !UNRESOLVED.test(declared) && !/^[[(]/.test(declared);
     dependencies.push({
       ecosystem: 'MAVEN',
       coordinates: `${groupId}:${artifactId}`,
       ...(declared ? { declared } : {}),
       ...(exact ? { version: declared } : {}),
-      scope,
+      scope: scope !== 'plugin' && scope !== 'parent' && isSibling(groupId, raw) ? 'module' : scope,
     });
   };
 
@@ -92,5 +104,5 @@ export function parsePom(content: string, file: string): ManifestResult {
   for (const plugin of children(child(child(project, 'build'), 'plugins'), 'plugin')) {
     add(plugin, 'plugin', 'org.apache.maven.plugins');
   }
-  return { dependencies, warnings };
+  return { dependencies, warnings, ...(ownGroup && ownArtifact ? { self: `${ownGroup}:${ownArtifact}` } : {}) };
 }

@@ -155,6 +155,25 @@ describe('ImportComponent', () => {
     expect(sourceLabels()).toEqual(['front']);
   });
 
+  it('leaves the modules of a multi-module project unchecked, with an explanation', async () => {
+    await render();
+    await pick([
+      file(
+        'shop/web/pom.xml',
+        `<project><parent><groupId>com.acme</groupId><artifactId>shop</artifactId><version>1.0.0</version></parent>
+          <artifactId>web</artifactId>
+          <dependencies>
+            <dependency><groupId>com.acme</groupId><artifactId>api</artifactId><version>\${project.version}</version></dependency>
+            <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId><version>2.0.16</version></dependency>
+          </dependencies></project>`,
+      ),
+    ]);
+    // the reactor parent is recognized only when its own pom is dropped too
+    expect(checked()).toEqual(['com.acme:shop', 'org.slf4j:slf4j-api']);
+    expect(el.textContent).toContain('no point following them');
+    expect(el.textContent).toContain('com.acme:api');
+  });
+
   it('refuses a name already used and an empty source name', async () => {
     projects.set([{ id: 'p1', name: 'shop', notifyNewerOnly: false, createdAt: '', sources: [] }]);
     await render();

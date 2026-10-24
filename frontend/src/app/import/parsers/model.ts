@@ -1,7 +1,18 @@
 export type ImportEcosystem = 'NPM' | 'MAVEN' | 'PYPI';
 
 // prod/parent/bom are checked by default in the UI; the others unchecked
-export type DepScope = 'prod' | 'dev' | 'optional' | 'peer' | 'test' | 'provided' | 'plugin' | 'parent' | 'bom';
+export type DepScope =
+  | 'prod'
+  | 'dev'
+  | 'optional'
+  | 'peer'
+  | 'test'
+  | 'provided'
+  | 'plugin'
+  | 'parent'
+  | 'bom'
+  // another module of the same multi-module (Maven reactor) project: not worth following
+  | 'module';
 
 export interface ParsedDependency {
   ecosystem: ImportEcosystem;
@@ -39,6 +50,8 @@ export interface ParseResult {
 export interface ManifestResult {
   dependencies: ParsedDependency[];
   warnings: string[];
+  /** coordinates of the artifact this manifest builds (Maven), to spot sibling modules */
+  self?: string;
 }
 
 /** What a lockfile brings: exact versions, and the direct dependencies when it knows them. */
@@ -48,7 +61,18 @@ export interface LockResult {
   standalone?: ManifestResult;
 }
 
-const SCOPE_RANK: DepScope[] = ['prod', 'parent', 'bom', 'peer', 'optional', 'provided', 'dev', 'test', 'plugin'];
+const SCOPE_RANK: DepScope[] = [
+  'prod',
+  'parent',
+  'bom',
+  'peer',
+  'optional',
+  'provided',
+  'dev',
+  'test',
+  'plugin',
+  'module',
+];
 
 /** Splits "a/b/c.json" into ['a/b', 'c.json']. */
 export function splitPath(path: string): { dir: string; name: string } {

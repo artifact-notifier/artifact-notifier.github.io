@@ -125,7 +125,9 @@ export async function parseProjectFiles(files: InputFile[]): Promise<ParseResult
     }
   }
 
-  for (const m of manifests) result.sources.push(toSource(m));
+  // modules dropped together (multi-module Maven project): deps on each other are internal
+  const modules = new Set(manifests.map((m) => m.result.self).filter(Boolean));
+  for (const m of manifests) result.sources.push(markModules(toSource(m), modules));
   result.sources.sort((a, b) => a.label.localeCompare(b.label));
   result.errors.sort((a, b) => a.path.localeCompare(b.path));
   result.ignored.sort((a, b) => a.localeCompare(b));
@@ -151,5 +153,13 @@ function toSource(m: ParsedManifest): ParsedSource {
     files: [m.path, ...m.locks.map((l) => l.path)],
     dependencies,
     warnings,
+  };
+}
+
+function markModules(source: ParsedSource, modules: Set<string | undefined>): ParsedSource {
+  if (source.ecosystem !== 'MAVEN' || !modules.size) return source;
+  return {
+    ...source,
+    dependencies: source.dependencies.map((d) => (modules.has(d.coordinates) ? { ...d, scope: 'module' as const } : d)),
   };
 }

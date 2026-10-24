@@ -110,7 +110,8 @@ describe('parsePom', () => {
       'parent org.springframework.boot:spring-boot-starter-parent',
       'prod org.springframework.boot:spring-boot-starter-web',
       'prod org.mapstruct:mapstruct',
-      'prod com.example:demo-api',
+      // same groupId, versioned \${project.version}: a sibling module
+      'module com.example:demo-api',
       'provided jakarta.servlet:jakarta.servlet-api',
       'optional org.projectlombok:lombok',
       'test org.springframework.boot:spring-boot-starter-test',
@@ -158,5 +159,61 @@ describe('parsePom', () => {
   it('rejects malformed XML and non-POM documents', () => {
     expect(() => parsePom('<project><dependencies>', 'pom.xml')).toThrow('invalid pom.xml');
     expect(() => parsePom('<settings/>', 'pom.xml')).toThrow('invalid pom.xml');
+  });
+
+  describe('multi-module projects', () => {
+    const module = `<project>
+      <parent><groupId>fr.gouv.vitam</groupId><artifactId>vitam-ui</artifactId><version>9.1.0</version></parent>
+      <artifactId>ui-commons</artifactId>
+      <dependencies>
+        <dependency><groupId>fr.gouv.vitam</groupId><artifactId>ui-api</artifactId><version>\${project.version}</version></dependency>
+        <dependency><groupId>fr.gouv.vitam</groupId><artifactId>ui-core</artifactId><version>9.1.0</version></dependency>
+        <dependency><groupId>fr.gouv.vitam</groupId><artifactId>vitam-client</artifactId><version>8.0.2</version></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot</artifactId><version>9.1.0</version></dependency>
+      </dependencies>
+      <build><plugins><plugin><groupId>fr.gouv.vitam</groupId><artifactId>build-tools</artifactId><version>\${project.version}</version></plugin></plugins></build>
+    </project>`;
+    const scopes = () =>
+      Object.fromEntries(parsePom(module, 'pom.xml').dependencies.map((d) => [d.coordinates, d.scope]));
+
+    it('marks sibling modules: same groupId versioned with the project version placeholder', () => {
+      expect(scopes()).toEqual({
+        // the parent is only recognized when its pom is dropped too (see parseProjectFiles)
+        'fr.gouv.vitam:vitam-ui': 'parent',
+        'fr.gouv.vitam:ui-api': 'module',
+        // a literal equal version is no proof (could be a corporate parent's version)
+        'fr.gouv.vitam:ui-core': 'prod',
+        // same group but its own version: a published artifact
+        'fr.gouv.vitam:vitam-client': 'prod',
+        // same version, other group
+        'org.springframework.boot:spring-boot': 'prod',
+        // plugins keep their scope
+        'fr.gouv.vitam:build-tools': 'plugin',
+      });
+    });
+
+    it('exposes the coordinates of the module it builds', () => {
+      expect(parsePom(module, 'pom.xml').self).toBe('fr.gouv.vitam:ui-commons');
+    });
+
+    it('does not treat a corporate parent as a module, even with groupId and version inherited', () => {
+      const inheriting = `<project>
+        <parent><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-parent</artifactId><version>4.1.2</version></parent>
+        <artifactId>app</artifactId>
+        <dependencies><dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>4.1.2</version></dependency></dependencies>
+      </project>`;
+      expect(parsePom(inheriting, 'pom.xml').dependencies.map((d) => d.scope)).toEqual(['parent', 'prod']);
+    });
+
+    it('does not treat a corporate parent with another version as a module', () => {
+      const pom = `<project>
+        <parent><groupId>fr.gouv.vitam</groupId><artifactId>parent</artifactId><version>3.0.0</version></parent>
+        <artifactId>app</artifactId><version>1.0.0</version>
+      </project>`;
+      expect(parsePom(pom, 'pom.xml').dependencies[0]).toMatchObject({
+        coordinates: 'fr.gouv.vitam:parent',
+        scope: 'parent',
+      });
+    });
   });
 });

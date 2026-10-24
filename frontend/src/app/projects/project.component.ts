@@ -4,8 +4,13 @@ import { ArtifactsService } from '../artifacts/artifacts.service';
 import { I18nService } from '../core/i18n.service';
 import { ToastService } from '../core/toast.service';
 import { EcoIconComponent } from '../shared/eco-icon.component';
+import { scopeRank } from '../shared/scopes';
 import { OrphansDialogComponent } from './orphans-dialog.component';
 import { Orphan, ProjectDependency, ProjectSource, ProjectsService } from './projects.service';
+
+type SortKey = 'name' | 'scope' | 'outdated';
+
+const outdatedRank = (d: ProjectDependency) => (d.outdated ? 0 : d.followedArtifactId ? 1 : 2);
 
 @Component({
   selector: 'app-project',
@@ -73,14 +78,26 @@ import { Orphan, ProjectDependency, ProjectSource, ProjectsService } from './pro
               <thead>
                 <tr>
                   <th>{{ i18n.t()('project.col.follow') }}</th>
-                  <th>{{ i18n.t()('project.col.dependency') }}</th>
-                  <th>{{ i18n.t()('project.col.scope') }}</th>
+                  <th [attr.aria-sort]="ariaSort('name')">
+                    <button type="button" class="sort" (click)="sortBy('name')">
+                      {{ i18n.t()('project.col.dependency') }} {{ arrow('name') }}
+                    </button>
+                  </th>
+                  <th [attr.aria-sort]="ariaSort('scope')">
+                    <button type="button" class="sort" (click)="sortBy('scope')">
+                      {{ i18n.t()('project.col.scope') }} {{ arrow('scope') }}
+                    </button>
+                  </th>
                   <th>{{ i18n.t()('project.col.used') }}</th>
-                  <th>{{ i18n.t()('project.col.latest') }}</th>
+                  <th [attr.aria-sort]="ariaSort('outdated')">
+                    <button type="button" class="sort" (click)="sortBy('outdated')">
+                      {{ i18n.t()('project.col.latest') }} {{ arrow('outdated') }}
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                @for (d of s.dependencies; track d.coordinates) {
+                @for (d of sorted(s.dependencies); track d.coordinates) {
                   <tr [class.followed]="d.followedArtifactId">
                     <td>
                       <input
@@ -194,6 +211,14 @@ import { Orphan, ProjectDependency, ProjectSource, ProjectsService } from './pro
       color: #d97706;
       font-weight: 600;
     }
+    .sort {
+      background: none;
+      border: none;
+      padding: 0;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
     .scope {
       font-size: 0.7rem;
       padding: 0.05rem 0.45rem;
@@ -225,6 +250,8 @@ export class ProjectComponent {
   protected readonly editing = signal(false);
   protected readonly draftName = signal('');
   protected readonly busy = signal(new Set<string>());
+  /** default: by scope (parent, BOM, prod… internal modules last), then by name */
+  protected readonly sort = signal<{ key: SortKey; desc: boolean }>({ key: 'scope', desc: false });
   protected readonly outdatedCount = computed(
     () =>
       this.project()
@@ -310,6 +337,33 @@ export class ProjectComponent {
     this.orphans.set(null);
     this.projects.resource.reload();
     if (this.leaveAfterOrphans) await this.router.navigate(['/']);
+  }
+
+  sortBy(key: SortKey) {
+    this.sort.update((s) => (s.key === key ? { key, desc: !s.desc } : { key, desc: false }));
+  }
+
+  arrow(key: SortKey): string {
+    const s = this.sort();
+    return s.key !== key ? '' : s.desc ? '▼' : '▲';
+  }
+
+  ariaSort(key: SortKey): 'ascending' | 'descending' | 'none' {
+    const s = this.sort();
+    return s.key !== key ? 'none' : s.desc ? 'descending' : 'ascending';
+  }
+
+  sorted(deps: ProjectDependency[]): ProjectDependency[] {
+    const { key, desc } = this.sort();
+    const byName = (a: ProjectDependency, b: ProjectDependency) => a.coordinates.localeCompare(b.coordinates);
+    const primary = (a: ProjectDependency, b: ProjectDependency) =>
+      key === 'scope'
+        ? scopeRank(a.scope) - scopeRank(b.scope)
+        : key === 'outdated'
+          ? // behind first, then followed, then the rest
+            outdatedRank(a) - outdatedRank(b)
+          : 0;
+    return [...deps].sort((a, b) => (desc ? -1 : 1) * (primary(a, b) || byName(a, b)));
   }
 
   fmtDate(iso: string): string {

@@ -188,4 +188,60 @@ describe('ProjectComponent', () => {
     expect(el.querySelector('app-orphans-dialog')).toBeNull();
     expect(navigate).toHaveBeenCalledWith(['/']);
   });
+
+  describe('sorting', () => {
+    const dep = (coordinates: string, scope: string, extra: object = {}) => ({
+      coordinates,
+      declared: null,
+      version: null,
+      scope,
+      followedArtifactId: null,
+      latestVersion: null,
+      outdated: false,
+      ...extra,
+    });
+    const names = () => [...el.querySelectorAll('tbody td.coords')].map((c) => c.textContent!.trim());
+    const header = (text: RegExp) =>
+      [...el.querySelectorAll<HTMLButtonElement>('th button.sort')].find((b) => text.test(b.textContent!))!;
+
+    beforeEach(() =>
+      projects.set([
+        {
+          ...PROJECT,
+          sources: [
+            {
+              ...PROJECT.sources[0],
+              dependencies: [
+                dep('com.acme:shop-api', 'module'),
+                dep('junit', 'test'),
+                dep('zeta', 'prod', { followedArtifactId: 'f2' }),
+                dep('alpha', 'prod', { followedArtifactId: 'f3', outdated: true }),
+                dep('org.acme:parent', 'parent'),
+              ],
+            },
+          ],
+        },
+      ]),
+    );
+
+    it('sorts by scope by default (parent first, internal modules last), then by name', async () => {
+      await render();
+      expect(names()).toEqual(['org.acme:parent', 'alpha', 'zeta', 'junit', 'com.acme:shop-api']);
+      expect(header(/Scope/).closest('th')!.getAttribute('aria-sort')).toBe('ascending');
+    });
+
+    it('sorts by name, then by lag, toggling the direction', async () => {
+      await render();
+      header(/Dependency/).click();
+      await fixture.whenStable();
+      expect(names()).toEqual(['alpha', 'com.acme:shop-api', 'junit', 'org.acme:parent', 'zeta']);
+      header(/Dependency/).click();
+      await fixture.whenStable();
+      expect(names()[0]).toBe('zeta');
+      header(/Latest/).click();
+      await fixture.whenStable();
+      // behind first, then followed, then the rest
+      expect(names().slice(0, 2)).toEqual(['alpha', 'zeta']);
+    });
+  });
 });

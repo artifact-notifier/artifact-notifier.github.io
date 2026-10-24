@@ -9,6 +9,7 @@ import { OrphansDialogComponent } from '../projects/orphans-dialog.component';
 import { artifactKey, Orphan, ProjectSource, ProjectsService } from '../projects/projects.service';
 import { EcoIconComponent } from '../shared/eco-icon.component';
 import { valueOrUndefined } from '../shared/resource-value';
+import { SCOPE_ORDER } from '../shared/scopes';
 import { collectFromDataTransfer, collectFromFileList, CollectResult } from './collect-files';
 import { DepScope, isSupportedFile, ParsedDependency, ParsedSource, ParseResult, parseProjectFiles } from './parsers';
 
@@ -117,6 +118,9 @@ interface SourceState {
         </div>
         @for (group of groups(s.parsed); track group.scope) {
           <h4>{{ group.scope }} ({{ group.deps.length }})</h4>
+          @if (group.scope === 'module') {
+            <p class="muted small">{{ i18n.t()('import.moduleHint') }}</p>
+          }
           <ul class="deps">
             @for (d of group.deps; track d.coordinates) {
               <li>
@@ -416,10 +420,9 @@ export class ImportComponent {
   }
 
   protected groups(source: ParsedSource) {
-    const order: DepScope[] = ['parent', 'bom', 'prod', 'peer', 'optional', 'provided', 'dev', 'test', 'plugin'];
-    return order
-      .map((scope) => ({ scope, deps: source.dependencies.filter((d) => d.scope === scope) }))
-      .filter((g) => g.deps.length);
+    return SCOPE_ORDER.map((scope) => ({ scope, deps: source.dependencies.filter((d) => d.scope === scope) })).filter(
+      (g) => g.deps.length,
+    );
   }
 
   protected setLabel(index: number, label: string) {

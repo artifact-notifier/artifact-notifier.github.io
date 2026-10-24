@@ -40,6 +40,8 @@ const BACK = {
   dependencies: [
     { coordinates: 'org.springframework.boot:spring-boot-starter-parent', version: '4.1.2', scope: 'parent' },
     { coordinates: 'org.junit.jupiter:junit-jupiter', scope: 'test' },
+    // a sibling module of the same reactor
+    { coordinates: 'com.acme:shop-api', version: '1.0.0', scope: 'module' },
   ],
 };
 
@@ -119,7 +121,7 @@ describe('projects import', () => {
     expect(
       p.sources.find((s: any) => s.label === 'front/package.json').dependencies.map((d: any) => d.coordinates),
     ).toEqual(['rxjs']);
-    expect(p.sources.find((s: any) => s.label === 'back/pom.xml').dependencies).toHaveLength(2);
+    expect(p.sources.find((s: any) => s.label === 'back/pom.xml').dependencies).toHaveLength(3);
   });
 
   it('matches PyPI names whatever their spelling (PEP 503)', async () => {

@@ -14,7 +14,18 @@ import { Ecosystem } from '@prisma/client';
 
 // Same alphabet as FollowDto: npm names, Maven group:artifact, PyPI names
 const COORDINATES = /^[\w.@/:-]+$/;
-export const DEP_SCOPES = ['prod', 'dev', 'optional', 'peer', 'test', 'provided', 'plugin', 'parent', 'bom'] as const;
+export const DEP_SCOPES = [
+  'prod',
+  'dev',
+  'optional',
+  'peer',
+  'test',
+  'provided',
+  'plugin',
+  'parent',
+  'bom',
+  'module',
+] as const;
 const IMPORTABLE = [Ecosystem.NPM, Ecosystem.MAVEN, Ecosystem.PYPI];
 
 export class DependencyDto {

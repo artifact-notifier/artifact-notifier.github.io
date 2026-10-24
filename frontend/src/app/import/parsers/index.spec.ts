@@ -142,6 +142,34 @@ describe('parseProjectFiles', () => {
     ]);
   });
 
+  it('marks dependencies on modules dropped together, whatever their version', async () => {
+    const root = `<project><groupId>com.acme</groupId><artifactId>shop-parent</artifactId><version>2.0.0</version>
+      <dependencies><dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId><version>2.0.16</version></dependency></dependencies>
+    </project>`;
+    const api = `<project><parent><groupId>com.acme</groupId><artifactId>shop-parent</artifactId><version>2.0.0</version></parent>
+      <groupId>com.acme.api</groupId><artifactId>shop-api</artifactId><version>1.4.0</version></project>`;
+    const web = `<project><groupId>com.acme.web</groupId><artifactId>shop-web</artifactId><version>3.1.0</version>
+      <dependencies>
+        <dependency><groupId>com.acme.api</groupId><artifactId>shop-api</artifactId><version>1.4.0</version></dependency>
+        <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId><version>2.0.16</version></dependency>
+      </dependencies>
+    </project>`;
+    const res = await parseProjectFiles([
+      { path: 'shop/pom.xml', content: root },
+      { path: 'shop/api/pom.xml', content: api },
+      { path: 'shop/web/pom.xml', content: web },
+    ]);
+    const webDeps = res.sources.find((s) => s.label === 'shop/web/pom.xml')!.dependencies;
+    expect(webDeps.map((d) => `${d.coordinates}=${d.scope}`)).toEqual([
+      'com.acme.api:shop-api=module',
+      'org.slf4j:slf4j-api=prod',
+    ]);
+    // the reactor parent of a module, dropped too
+    expect(res.sources.find((s) => s.label === 'shop/api/pom.xml')!.dependencies).toEqual([
+      expect.objectContaining({ coordinates: 'com.acme:shop-parent', scope: 'module' }),
+    ]);
+  });
+
   it('reports parse errors per file without failing the others', async () => {
     const res = await parseProjectFiles([
       { path: 'package.json', content: '{ broken' },
