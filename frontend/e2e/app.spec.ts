@@ -149,3 +149,22 @@ test.describe('projects', () => {
     expect(await horizontalOverflow(page)).toBe(0);
   });
 });
+
+test.describe('after a deployment', () => {
+  test('a tab on the previous build reloads instead of failing on a missing lazy chunk', async ({ page }) => {
+    await mockApi(page, { loggedIn: true });
+    await page.goto('/#/projects/p1');
+    await page.getByRole('heading', { level: 1, name: /shop/ }).waitFor();
+    // the import page chunk was replaced by the new build: first fetch 404s
+    let blocked = 0;
+    await page.route('**/chunk-*.js', async (route) => {
+      if (blocked++ === 0) return route.fulfill({ status: 404, body: 'Not Found' });
+      return route.continue();
+    });
+    const reloaded = page.waitForEvent('load');
+    await page.getByRole('link', { name: /ré-importer/ }).click();
+    await reloaded;
+    await expect(page).toHaveURL(/#\/import\?project=p1$/);
+    await expect(page.getByRole('heading', { name: /Importer un projet/ })).toBeVisible();
+  });
+});
