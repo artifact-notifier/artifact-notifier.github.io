@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { LogLevel } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
@@ -23,7 +24,7 @@ function resolveLogLevels(level: string | undefined): LogLevel[] {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   // Applied after ConfigService init so LOG_LEVEL from .env is honored
   // (process.env alone would miss .env values at this point).

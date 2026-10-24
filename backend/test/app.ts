@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
@@ -18,7 +19,7 @@ export async function createTestApp(): Promise<INestApplication> {
     .overrideProvider(PypiArtifactListener)
     .useValue(noListener)
     .compile();
-  const app = moduleRef.createNestApplication({ logger: false });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
   configureApp(app);
   await app.init();
   return app;

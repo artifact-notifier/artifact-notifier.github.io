@@ -91,7 +91,8 @@ export class ImportDto {
 
   @ValidateNested({ each: true })
   @Type(() => SourceDto)
-  @ArrayMaxSize(50)
+  // multi-module Maven projects easily have dozens of pom.xml
+  @ArrayMaxSize(500)
   sources!: SourceDto[];
 
   @ValidateNested({ each: true })

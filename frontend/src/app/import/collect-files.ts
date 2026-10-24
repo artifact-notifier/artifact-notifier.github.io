@@ -18,7 +18,8 @@ const SKIPPED_DIRS = new Set([
   '.gradle',
   '.idea',
 ]);
-const MAX_FILES = 200;
+// a large monorepo: hundreds of modules, each with its manifest (and lockfile)
+const MAX_FILES = 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 interface CollectedFile {

@@ -165,6 +165,37 @@ describe('projects import', () => {
   });
 });
 
+describe('large multi-module projects', () => {
+  it('imports 120 modules with their dependencies (well over the default 100kb body)', async () => {
+    const sources = Array.from({ length: 120 }, (_, m) => ({
+      label: `modules/module-${m}/pom.xml`,
+      kind: 'pom.xml',
+      ecosystem: 'MAVEN',
+      dependencies: Array.from({ length: 25 }, (_, d) => ({
+        coordinates: `com.acme.module${m}:artifact-number-${d}`,
+        declared: '${project.version}',
+        version: '1.0.0-SNAPSHOT',
+        scope: 'module',
+      })),
+    }));
+    const body = { projectName: 'monorepo', sources, follow: [] };
+    expect(JSON.stringify(body).length).toBeGreaterThan(300_000);
+    const res = await importProject(body);
+    expect(res.status).toBe(201);
+    expect((await projects())[0].sources).toHaveLength(120);
+  });
+
+  it('still refuses absurd payloads', async () => {
+    const sources = Array.from({ length: 501 }, (_, m) => ({
+      label: `m${m}`,
+      kind: 'pom.xml',
+      ecosystem: 'MAVEN',
+      dependencies: [],
+    }));
+    expect((await importProject({ projectName: 'too-big', sources, follow: [] })).status).toBe(400);
+  });
+});
+
 describe('projects validation and ownership', () => {
   it('rejects a duplicate name, a missing target and invalid payloads', async () => {
     await importProject({ projectName: 'p', sources: [], follow: [] });
