@@ -28,9 +28,15 @@ function dep(name: string, scope: DepScope, declared?: string, version?: string)
  */
 function requirement(line: string, scope: DepScope, file: string): ParsedDependency | string | undefined {
   const req = line.split(';')[0].trim();
-  const m = /^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(\[[^\]]*\])?\s*(.*)$/.exec(req);
-  if (!m) return undefined;
-  const [, name, , rest] = m;
+  // name, optional [extras], then the version spec (no regex backtracking)
+  const name = /^[A-Za-z0-9][A-Za-z0-9._-]*/.exec(req)?.[0];
+  if (!name) return undefined;
+  let rest = req.slice(name.length).trimStart();
+  if (rest.startsWith('[')) {
+    const end = rest.indexOf(']');
+    if (end < 0) return undefined;
+    rest = rest.slice(end + 1).trimStart();
+  }
   if (rest.startsWith('@')) return `${file}: ${name} is a direct URL reference, skipped`;
   const spec = rest.replace(/^\((.*)\)$/, '$1').trim();
   return dep(name, scope, spec || undefined, exactPin(spec));

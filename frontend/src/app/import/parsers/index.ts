@@ -128,7 +128,7 @@ export async function parseProjectFiles(files: InputFile[]): Promise<ParseResult
   for (const m of manifests) result.sources.push(toSource(m));
   result.sources.sort((a, b) => a.label.localeCompare(b.label));
   result.errors.sort((a, b) => a.path.localeCompare(b.path));
-  result.ignored.sort();
+  result.ignored.sort((a, b) => a.localeCompare(b));
   return result;
 }
 

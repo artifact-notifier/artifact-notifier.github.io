@@ -419,10 +419,10 @@ export class AdminComponent {
   }
 
   channels(s: AdminStats): string[] {
-    return Object.keys(s.notifications.deliveriesByChannel).sort();
+    return Object.keys(s.notifications.deliveriesByChannel).sort((a, b) => a.localeCompare(b));
   }
 
   listenerKeys(s: AdminStats): string[] {
-    return Object.keys(s.listeners).sort();
+    return Object.keys(s.listeners).sort((a, b) => a.localeCompare(b));
   }
 }
