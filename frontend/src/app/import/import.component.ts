@@ -157,8 +157,19 @@ interface SourceState {
         <span class="muted">{{
           i18n.t()('import.summary', { s: '' + sources().length, n: '' + toFollow().length })
         }}</span>
-        <button class="btn" type="button" [disabled]="!canSubmit()" (click)="submit()">
-          {{ i18n.t()('import.submit') }}
+        <button
+          class="btn"
+          type="button"
+          [disabled]="!canSubmit() || submitting()"
+          [attr.aria-busy]="submitting()"
+          (click)="submit()"
+        >
+          @if (submitting()) {
+            <span class="spinner" aria-hidden="true"></span>
+            {{ i18n.t()('import.submitting', { n: '' + toFollow().length }) }}
+          } @else {
+            {{ i18n.t()('import.submit') }}
+          }
         </button>
       </div>
     }
@@ -268,6 +279,22 @@ interface SourceState {
     .removed {
       color: #b45309;
     }
+    .spinner {
+      display: inline-block;
+      width: 0.9em;
+      height: 0.9em;
+      margin-right: 0.4rem;
+      vertical-align: -0.1em;
+      border: 2px solid rgba(255, 255, 255, 0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
     .submit {
       position: sticky;
       bottom: 0;
@@ -308,6 +335,8 @@ export class ImportComponent {
   protected readonly skipped = signal<string[]>([]);
   protected readonly sources = signal<SourceState[]>([]);
   protected readonly orphans = signal<Orphan[] | null>(null);
+  /** an import is in flight: the button is disabled (no double submit) */
+  protected readonly submitting = signal(false);
   private importedProjectId = '';
 
   protected readonly toFollow = computed(() =>
@@ -422,6 +451,8 @@ export class ImportComponent {
   }
 
   async submit() {
+    if (this.submitting()) return;
+    this.submitting.set(true);
     const existing = this.existing();
     try {
       const res = await this.projects.importProject({
@@ -451,6 +482,8 @@ export class ImportComponent {
       else await this.leave();
     } catch (e: any) {
       this.toast.show(e?.message || 'Error', 'error');
+    } finally {
+      this.submitting.set(false);
     }
   }
 }

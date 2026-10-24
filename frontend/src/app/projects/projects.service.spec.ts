@@ -59,12 +59,14 @@ describe('ProjectsService', () => {
     expect(reload).toHaveBeenCalledTimes(4);
   });
 
-  it('surfaces the API error message', async () => {
+  it('surfaces the API error message and still reloads (partly applied changes)', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ message: 'A project with this name already exists' }), { status: 409 }),
     );
+    const reload = vi.spyOn(svc.resource, 'reload');
     await expect(svc.update('p1', { name: 'dup' })).rejects.toEqual({
       message: 'A project with this name already exists',
     });
+    expect(reload).toHaveBeenCalled();
   });
 });

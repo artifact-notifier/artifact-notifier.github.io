@@ -97,14 +97,18 @@ export class ProjectsService {
   }
 
   private async send<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await fetch(this.api.apiUrl(path), {
-      method,
-      credentials: 'include',
-      headers: { ...this.auth.authHeaders(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (!res.ok) throw await res.json().catch(() => ({ message: res.statusText }));
-    this.resource.reload();
-    return res.json();
+    try {
+      const res = await fetch(this.api.apiUrl(path), {
+        method,
+        credentials: 'include',
+        headers: { ...this.auth.authHeaders(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) throw await res.json().catch(() => ({ message: res.statusText }));
+      return await res.json();
+    } finally {
+      // also after a failure: a partly applied import must show up
+      this.resource.reload();
+    }
   }
 }

@@ -67,7 +67,7 @@ export class AdminService {
       p.notificationDelivery.count({ where: { status: 'SENT', sentAt: { gte: since(7) } } }),
       p.notificationDelivery.count({ where: { status: 'FAILED', createdAt: { gte: since(7) } } }),
       p.artifactVersionEvent.count({ where: { publishedAt: { gte: since(7) } } }),
-      p.knownVersion.count(),
+      p.$queryRaw<{ n: bigint | number | null }[]>`SELECT SUM(json_array_length(versions)) AS n FROM KnownVersions`,
       this.artifacts.getSyncStatus(),
     ]);
     const distinctArtifacts = await p.followedArtifact.groupBy({ by: ['ecosystem', 'coordinates'] });
@@ -97,7 +97,7 @@ export class AdminService {
           coordinates: a.coordinates,
           followers: a._count._all,
         })),
-        knownVersions,
+        knownVersions: Number(knownVersions[0]?.n ?? 0),
       },
       notifications: { deliveriesByChannel, sent24h, sent7d, failed7d, events7d },
       listeners: syncStatus,

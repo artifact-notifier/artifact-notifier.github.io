@@ -197,25 +197,28 @@ export class ArtifactsService {
   }
 
   async getKnownVersions(ecosystem: Ecosystem, coordinates: string): Promise<Set<string>> {
-    const rows = await this.prisma.knownVersion.findMany({
-      where: { ecosystem, coordinates },
-      select: { version: true },
+    const row = await this.prisma.knownVersions.findUnique({
+      where: { ecosystem_coordinates: { ecosystem, coordinates } },
     });
-    return new Set(rows.map((r) => r.version));
+    return new Set(row ? (JSON.parse(row.versions) as string[]) : []);
   }
 
+  /**
+   * Adds versions to the artifact's list in one atomic statement (merged by SQLite),
+   * so concurrent follows and listeners never hold a transaction open.
+   */
   async addKnownVersions(ecosystem: Ecosystem, coordinates: string, versions: string[]) {
     if (!versions.length) return;
-    // SQLite has no createMany skipDuplicates: upsert in one transaction
-    await this.prisma.$transaction(
-      [...new Set(versions)].map((version) =>
-        this.prisma.knownVersion.upsert({
-          where: { ecosystem_coordinates_version: { ecosystem, coordinates, version } },
-          create: { ecosystem, coordinates, version },
-          update: {},
-        }),
-      ),
-    );
+    const json = JSON.stringify([...new Set(versions)]);
+    await this.prisma.$executeRaw`
+      INSERT INTO "KnownVersions" ("ecosystem", "coordinates", "versions") VALUES (${ecosystem}, ${coordinates}, ${json})
+      ON CONFLICT ("ecosystem", "coordinates") DO UPDATE SET "versions" = (
+        SELECT json_group_array("value") FROM (
+          SELECT "value" FROM json_each("KnownVersions"."versions")
+          UNION
+          SELECT "value" FROM json_each(excluded."versions")
+        )
+      )`;
   }
 
   async markNewVersion(followedArtifactId: string, version: string) {

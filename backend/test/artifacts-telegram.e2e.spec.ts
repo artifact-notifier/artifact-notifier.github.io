@@ -91,7 +91,10 @@ describe('following real ecosystems', () => {
     routeFetch(() => new Response(JSON.stringify({ versions: { '1.0.0': {}, '1.1.0': {}, '2.0.0-rc.1': {} } })));
     const res = await api().post('/api/artifacts/follow').set(auth).send({ ecosystem: 'NPM', coordinates: 'lib' });
     expect(res.body.currentVersion).toBe('1.1.0');
-    expect(await prisma.knownVersion.count({ where: { coordinates: 'lib' } })).toBe(3);
+    const known = await prisma.knownVersions.findUnique({
+      where: { ecosystem_coordinates: { ecosystem: 'NPM', coordinates: 'lib' } },
+    });
+    expect(JSON.parse(known!.versions)).toEqual(['1.0.0', '1.1.0', '2.0.0-rc.1']);
     // following again returns the same row
     const again = await api().post('/api/artifacts/follow').set(auth).send({ ecosystem: 'NPM', coordinates: 'lib' });
     expect(again.body.id).toBe(res.body.id);

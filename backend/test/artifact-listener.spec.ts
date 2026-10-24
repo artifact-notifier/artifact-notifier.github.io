@@ -118,4 +118,20 @@ describe('ArtifactListener.handleVersions', () => {
       expect(notified()).toEqual(['stable:4.0.10', 'pre:4.0.10']);
     });
   });
+
+  it('stores the known versions of an artifact in one row, merging concurrent additions', async () => {
+    await Promise.all([
+      artifacts.addKnownVersions(Ecosystem.MAVEN, 'g:a', ['1.0', '1.1']),
+      artifacts.addKnownVersions(Ecosystem.MAVEN, 'g:a', ['1.1', '2.0']),
+      artifacts.addKnownVersions(Ecosystem.MAVEN, 'g:a', ['3.0']),
+    ]);
+    await artifacts.addKnownVersions(Ecosystem.MAVEN, 'g:a', []);
+    expect([...(await artifacts.getKnownVersions(Ecosystem.MAVEN, 'g:a'))].sort()).toEqual([
+      '1.0',
+      '1.1',
+      '2.0',
+      '3.0',
+    ]);
+    expect(await prisma.knownVersions.count({ where: { coordinates: 'g:a' } })).toBe(1);
+  });
 });

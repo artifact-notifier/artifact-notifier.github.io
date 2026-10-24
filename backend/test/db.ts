@@ -8,7 +8,7 @@ export async function resetDb(prisma: PrismaClient) {
   await prisma.notificationDelivery.deleteMany();
   await prisma.artifactVersionEvent.deleteMany();
   await prisma.followedArtifact.deleteMany();
-  await prisma.knownVersion.deleteMany();
+  await prisma.knownVersions.deleteMany();
   await prisma.linkedIdentity.deleteMany();
   await prisma.userPreferences.deleteMany();
   await prisma.user.deleteMany();

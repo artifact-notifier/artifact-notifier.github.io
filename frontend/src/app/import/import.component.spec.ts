@@ -117,6 +117,26 @@ describe('ImportComponent', () => {
     expect(TestBed.inject(ToastService).toasts()[0].message).toContain('1 new follow');
   });
 
+  it('shows progress and cannot be submitted twice while importing', async () => {
+    await render();
+    await pick([file('shop/package.json', PACKAGE_JSON)]);
+    let finish!: (v: unknown) => void;
+    projectsSvc.importProject.mockReturnValue(new Promise((r) => (finish = r)));
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    submitButton().click();
+    await fixture.whenStable();
+    const busy = el.querySelector('.submit button') as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
+    expect(busy.querySelector('.spinner')).not.toBeNull();
+    expect(busy.textContent).toContain('Importing (2 follow(s))');
+    busy.click();
+    expect(projectsSvc.importProject).toHaveBeenCalledTimes(1);
+    finish({ projectId: 'p1', followed: 2, failed: [], orphans: [] });
+    await new Promise((r) => setTimeout(r));
+    await fixture.whenStable();
+    expect((el.querySelector('.submit button') as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('lets the user rename sources and toggle dependencies', async () => {
     await render();
     await pick([file('package.json', PACKAGE_JSON)]);

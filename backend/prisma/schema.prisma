@@ -84,14 +84,15 @@ model ArtifactVersionEvent {
 }
 
 // Versions already seen per artifact, shared by all followers: a version absent
-// from this set is new (whatever its position relative to the current one).
-model KnownVersion {
+// from this list is new (whatever its position relative to the current one).
+// One row per artifact (JSON array): popular packages have thousands of versions,
+// one row per version made following a few dozen artifacts a write storm.
+model KnownVersions {
   ecosystem   Ecosystem
   coordinates String
-  version     String
-  createdAt   DateTime  @default(now())
+  versions    String // JSON array of version strings
 
-  @@id([ecosystem, coordinates, version])
+  @@id([ecosystem, coordinates])
 }
 
 model NotificationDelivery {

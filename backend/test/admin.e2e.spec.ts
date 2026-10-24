@@ -55,12 +55,8 @@ async function seed() {
   await prisma.notificationDelivery.create({
     data: { eventId: event2.id, userId: 'alice', channel: 'email', status: 'FAILED', attempts: 8 },
   });
-  await prisma.knownVersion.createMany({
-    data: ['4.0.9', '4.1.2'].map((version) => ({
-      ecosystem: 'MAVEN' as const,
-      coordinates: boot.coordinates,
-      version,
-    })),
+  await prisma.knownVersions.create({
+    data: { ecosystem: 'MAVEN', coordinates: boot.coordinates, versions: JSON.stringify(['4.0.9', '4.1.2']) },
   });
 }
 
