@@ -2,24 +2,39 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Ecosystem } from '@prisma/client';
-import { fetchAllVersions } from './version-sources';
-import { pickCurrentVersion } from './versions';
+import { CRATES_USER_AGENT, escapeGoModulePath, fetchAllVersions } from './version-sources';
+import { isPrerelease, compareVersions, pickCurrentVersion } from './versions';
+import { parseRules, serializeRules, VersionRule } from './version-rules';
 import { normalizeCoordinates } from './coordinates';
 
 // projects import many dependencies at once
 const MAX_FOLLOWS_PER_USER = 500;
+// versions shown in the rules preview
+const PREVIEW_VERSIONS = 30;
+// the public stats are cheap but unauthenticated: computed at most once a minute
+const PUBLIC_STATS_TTL_MS = 60_000;
+
+type PublicStats = {
+  users: number;
+  followedArtifacts: number;
+  listeners: Awaited<ReturnType<ArtifactsService['getSyncStatus']>>;
+};
 
 export interface FollowedEntry {
   followedArtifactId: string;
   userId: string;
   currentVersion: string | null;
+  /** the follow's own setting, else the user's preference */
   includePrereleases: boolean;
+  rules: VersionRule[];
   /** the follower's projects using this artifact: their option and the version they use */
   usedIn: { newerOnly: boolean; version: string | null }[];
 }
 
 @Injectable()
 export class ArtifactsService {
+  private publicStats: { at: number; value: Promise<PublicStats> } | null = null;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
@@ -32,7 +47,7 @@ export class ArtifactsService {
   }
 
   getAvailableEcosystems(): Ecosystem[] {
-    const base: Ecosystem[] = [Ecosystem.NPM, Ecosystem.MAVEN, Ecosystem.PYPI];
+    const base: Ecosystem[] = [Ecosystem.NPM, Ecosystem.MAVEN, Ecosystem.PYPI, Ecosystem.GO, Ecosystem.CARGO];
     return this.isTestEnabled() ? [...base, Ecosystem.TEST] : base;
   }
 
@@ -62,7 +77,7 @@ export class ArtifactsService {
   }
 
   async list(userId: string) {
-    return this.prisma.followedArtifact.findMany({
+    const rows = await this.prisma.followedArtifact.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
       include: {
@@ -73,6 +88,41 @@ export class ArtifactsService {
         },
       },
     });
+    return rows.map((r) => ({ ...r, versionRules: parseRules(r.versionRules) }));
+  }
+
+  /**
+   * Replaces the follow's version filters, then realigns its current version on
+   * what they let through (when the artifact's versions are known).
+   */
+  async setRules(userId: string, id: string, rules: VersionRule[], includePrereleases: boolean | null) {
+    const fa = await this.prisma.followedArtifact.findFirst({ where: { id, userId } });
+    if (!fa) throw new NotFoundException('Followed artifact not found');
+    const known = [...(await this.getKnownVersions(fa.ecosystem, fa.coordinates))];
+    const prefs = await this.prisma.userPreferences.findUnique({ where: { userId } });
+    const currentVersion = known.length
+      ? pickCurrentVersion(known, includePrereleases ?? prefs?.includePrereleases ?? false, rules)
+      : fa.currentVersion;
+    const updated = await this.prisma.followedArtifact.update({
+      where: { id },
+      data: { versionRules: serializeRules(rules), includePrereleases, currentVersion },
+    });
+    return { ...updated, versionRules: parseRules(updated.versionRules) };
+  }
+
+  /** Latest known versions of a follow, for the rules preview (filtering is done client-side). */
+  async previewVersions(userId: string, id: string) {
+    const fa = await this.prisma.followedArtifact.findFirst({ where: { id, userId } });
+    if (!fa) throw new NotFoundException('Followed artifact not found');
+    const [known, prefs] = await Promise.all([
+      this.getKnownVersions(fa.ecosystem, fa.coordinates),
+      this.prisma.userPreferences.findUnique({ where: { userId } }),
+    ]);
+    const versions = [...known]
+      .sort((a, b) => compareVersions(b, a))
+      .slice(0, PREVIEW_VERSIONS)
+      .map((version) => ({ version, prerelease: isPrerelease(version) }));
+    return { defaultIncludePrereleases: prefs?.includePrereleases ?? false, versions };
   }
 
   async search(ecosystem: Ecosystem, q: string) {
@@ -85,6 +135,10 @@ export class ArtifactsService {
         return this.searchMaven(q);
       case 'PYPI':
         return this.searchPypi(q);
+      case 'GO':
+        return this.searchGo(q);
+      case 'CARGO':
+        return this.searchCargo(q);
       case 'TEST':
         // Dev only: returns the input as-is to create a fake local artifact
         return [{ coordinates: q.trim(), description: 'TEST — artifact local (dev only)' }];
@@ -132,6 +186,39 @@ export class ArtifactsService {
   }
 
   /**
+   * Go has no search API (pkg.go.dev only serves HTML): the query must be a module
+   * path, looked up on the proxy. Its latest version serves as description.
+   */
+  private async searchGo(q: string): Promise<{ coordinates: string; description?: string }[]> {
+    const path = q
+      .trim()
+      .replace(/^https?:\/\//, '')
+      .replace(/\/+$/, '');
+    // module paths start with a domain name
+    if (!/^[\w-]+(\.[\w-]+)+(\/[\w.~-]+)*$/.test(path)) return [];
+    try {
+      const res = await fetch(`https://proxy.golang.org/${escapeGoModulePath(path)}/@latest`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) return [];
+      const json = await res.json();
+      return [{ coordinates: path, description: json.Version }];
+    } catch {
+      return [];
+    }
+  }
+
+  private async searchCargo(q: string): Promise<{ coordinates: string; description?: string }[]> {
+    const url = `https://crates.io/api/v1/crates?q=${encodeURIComponent(q)}&per_page=10`;
+    const res = await fetch(url, { headers: { 'User-Agent': CRATES_USER_AGENT }, signal: AbortSignal.timeout(8000) });
+    const json = await res.json();
+    return (json.crates || []).map((c: any) => ({
+      coordinates: String(c.name).toLowerCase(),
+      description: c.description ?? c.max_version,
+    }));
+  }
+
+  /**
    * Highest version (stable unless the user wants prereleases). Also records every
    * existing version as known, so that only later publications trigger notifications.
    */
@@ -162,6 +249,8 @@ export class ArtifactsService {
           id: true,
           coordinates: true,
           currentVersion: true,
+          versionRules: true,
+          includePrereleases: true,
           userId: true,
           user: { select: { preferences: { select: { includePrereleases: true } } } },
         },
@@ -188,7 +277,8 @@ export class ArtifactsService {
           followedArtifactId: r.id,
           userId: r.userId,
           currentVersion: r.currentVersion,
-          includePrereleases: r.user.preferences?.includePrereleases ?? false,
+          includePrereleases: r.includePrereleases ?? r.user.preferences?.includePrereleases ?? false,
+          rules: parseRules(r.versionRules),
           usedIn: usedIn.get(`${r.userId}\n${r.coordinates}`) ?? [],
         },
       ]);
@@ -228,6 +318,24 @@ export class ArtifactsService {
     });
   }
 
+  /** Users, distinct followed artifacts (TEST excluded) and listeners' last sync. */
+  getPublicStats(): Promise<PublicStats> {
+    if (!this.publicStats || Date.now() - this.publicStats.at > PUBLIC_STATS_TTL_MS) {
+      const value = Promise.all([
+        this.prisma.user.count(),
+        this.prisma.followedArtifact.groupBy({
+          by: ['ecosystem', 'coordinates'],
+          where: { ecosystem: { not: 'TEST' } },
+        }),
+        this.getSyncStatus(),
+      ]).then(([users, distinct, listeners]) => ({ users, followedArtifacts: distinct.length, listeners }));
+      // a failed computation is not kept
+      value.catch(() => (this.publicStats = null));
+      this.publicStats = { at: Date.now(), value };
+    }
+    return this.publicStats.value;
+  }
+
   async getSyncStatus() {
     const rows = await this.prisma.listenerSequence.findMany();
     const map: Record<string, string> = {};
@@ -243,10 +351,14 @@ export class ArtifactsService {
     const npmTs = map['NpmArtifactListenerTimestamp'];
     const mavenTs = map['MavenArtifactListenerTimestamp'];
     const pypiTs = map['PypiArtifactListenerTimestamp'];
+    const goTs = map['GoArtifactListenerTimestamp'];
+    const cargoTs = map['CargoArtifactListenerTimestamp'];
     return {
       NPM: { lastSync: toIso(npmTs), lastSeq: map['NpmArtifactListener'] ?? null },
       MAVEN: { lastSync: toIso(mavenTs) ?? toIso(map['MavenArtifactListener']), lastSeq: null as string | null },
       PYPI: { lastSync: toIso(pypiTs) ?? toIso(map['PypiArtifactListener']), lastSeq: null as string | null },
+      GO: { lastSync: toIso(goTs) ?? toIso(map['GoArtifactListener']), lastSeq: null as string | null },
+      CARGO: { lastSync: toIso(cargoTs) ?? toIso(map['CargoArtifactListener']), lastSeq: null as string | null },
     };
   }
 }

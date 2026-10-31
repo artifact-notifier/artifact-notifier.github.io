@@ -119,6 +119,28 @@ describe('ArtifactListener.handleVersions', () => {
     });
   });
 
+  describe('version rules of a follow', () => {
+    it('skips the versions the rules filter out', async () => {
+      await prisma.followedArtifact.updateMany({
+        where: { userId: 'stable' },
+        data: { versionRules: JSON.stringify([{ type: 'include', pattern: '4.0.*' }]) },
+      });
+      await listener.refreshFollowed();
+      await listener.handle(['4.0.8', '4.1.1']);
+      await listener.handle(['4.0.8', '4.0.9', '4.1.1', '4.1.2']);
+      expect(notified()).toEqual(['stable:4.0.9', 'pre:4.0.9', 'pre:4.1.2']);
+    });
+
+    it('lets a follow override the prerelease preference', async () => {
+      await prisma.followedArtifact.updateMany({ where: { userId: 'stable' }, data: { includePrereleases: true } });
+      await prisma.followedArtifact.updateMany({ where: { userId: 'pre' }, data: { includePrereleases: false } });
+      await listener.refreshFollowed();
+      await listener.handle(['4.1.1']);
+      await listener.handle(['4.1.1', '4.2.0-RC1']);
+      expect(notified()).toEqual(['stable:4.2.0-RC1']);
+    });
+  });
+
   it('stores the known versions of an artifact in one row, merging concurrent additions', async () => {
     await Promise.all([
       artifacts.addKnownVersions(Ecosystem.MAVEN, 'g:a', ['1.0', '1.1']),

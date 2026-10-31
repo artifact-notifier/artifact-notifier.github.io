@@ -10,6 +10,8 @@ import {
   splitPath,
 } from './model';
 import { parsePom } from './maven';
+import { parseCargoLock, parseCargoToml } from './cargo';
+import { parseGoMod } from './go';
 import { parsePackageJson, parsePackageLock, parsePnpmLock, parseYarnLock } from './npm';
 import {
   parsePipfile,
@@ -34,6 +36,8 @@ interface LockType {
   ecosystem: ImportEcosystem;
   /** manifest kind it belongs to (gives the list of direct deps) */
   manifest: string;
+  /** workspace lockfile: also gives the versions of the manifests in subfolders */
+  tree?: boolean;
   parse(content: string, path: string): LockResult | Promise<LockResult>;
 }
 
@@ -48,6 +52,8 @@ const MANIFESTS: ManifestType[] = [
   },
   { kind: 'pyproject.toml', ecosystem: 'PYPI', matches: (n) => n === 'pyproject.toml', parse: parsePyproject },
   { kind: 'Pipfile', ecosystem: 'PYPI', matches: (n) => n === 'Pipfile', parse: parsePipfile },
+  { kind: 'go.mod', ecosystem: 'GO', matches: (n) => n === 'go.mod', parse: parseGoMod },
+  { kind: 'Cargo.toml', ecosystem: 'CARGO', matches: (n) => n === 'Cargo.toml', parse: parseCargoToml },
 ];
 
 const LOCKS: LockType[] = [
@@ -58,6 +64,7 @@ const LOCKS: LockType[] = [
   { name: 'poetry.lock', ecosystem: 'PYPI', manifest: 'pyproject.toml', parse: parsePoetryLock },
   { name: 'uv.lock', ecosystem: 'PYPI', manifest: 'pyproject.toml', parse: parseUvLock },
   { name: 'Pipfile.lock', ecosystem: 'PYPI', manifest: 'Pipfile', parse: parsePipfileLock },
+  { name: 'Cargo.lock', ecosystem: 'CARGO', manifest: 'Cargo.toml', parse: parseCargoLock, tree: true },
 ];
 
 export function isSupportedFile(path: string): boolean {
@@ -102,7 +109,15 @@ export async function parseProjectFiles(files: InputFile[]): Promise<ParseResult
   );
 
   for (const lock of locks) {
-    const candidates = manifests.filter((m) => m.dir === lock.dir && m.type.kind === lock.type.manifest);
+    const sameKind = manifests.filter((m) => m.type.kind === lock.type.manifest);
+    if (lock.type.tree) {
+      const covered = sameKind.filter((m) => !lock.dir || m.dir === lock.dir || m.dir.startsWith(`${lock.dir}/`));
+      if (covered.length) {
+        covered.forEach((m) => m.locks.push(lock));
+        continue;
+      }
+    }
+    const candidates = sameKind.filter((m) => m.dir === lock.dir);
     if (candidates.length === 1) {
       candidates[0].locks.push(lock);
     } else if (lock.result.standalone) {
@@ -125,8 +140,10 @@ export async function parseProjectFiles(files: InputFile[]): Promise<ParseResult
     }
   }
 
-  // modules dropped together (multi-module Maven project): deps on each other are internal
-  const modules = new Set(manifests.map((m) => m.result.self).filter(Boolean));
+  // modules dropped together (multi-module Maven project, Go/Cargo monorepo): deps on each other are internal
+  const modules = new Set(
+    manifests.filter((m) => m.result.self).map((m) => moduleKey(m.type.ecosystem, m.result.self!)),
+  );
   for (const m of manifests) result.sources.push(markModules(toSource(m), modules));
   result.sources.sort((a, b) => a.label.localeCompare(b.label));
   result.errors.sort((a, b) => a.path.localeCompare(b.path));
@@ -156,10 +173,14 @@ function toSource(m: ParsedManifest): ParsedSource {
   };
 }
 
-function markModules(source: ParsedSource, modules: Set<string | undefined>): ParsedSource {
-  if (source.ecosystem !== 'MAVEN' || !modules.size) return source;
+const moduleKey = (ecosystem: ImportEcosystem, coordinates: string) => `${ecosystem}:${coordinates}`;
+
+function markModules(source: ParsedSource, modules: Set<string>): ParsedSource {
+  if (!modules.size) return source;
   return {
     ...source,
-    dependencies: source.dependencies.map((d) => (modules.has(d.coordinates) ? { ...d, scope: 'module' as const } : d)),
+    dependencies: source.dependencies.map((d) =>
+      modules.has(moduleKey(source.ecosystem, d.coordinates)) ? { ...d, scope: 'module' as const } : d,
+    ),
   };
 }

@@ -1,6 +1,8 @@
 import { provideZonelessChangeDetection, signal, WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService, Provider } from '../core/auth.service';
 import { TelegramService } from '../core/telegram.service';
 import { PreferencesService } from '../preferences/preferences.service';
@@ -30,6 +32,8 @@ describe('LoginComponent', () => {
       providers: [
         provideZonelessChangeDetection(),
         provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         { provide: AuthService, useValue: auth },
         { provide: TelegramService, useValue: telegram },
         { provide: PreferencesService, useValue: { resource: fakeResource(signal(undefined)) } },
@@ -61,6 +65,38 @@ describe('LoginComponent', () => {
   });
 
   afterEach(() => fixture?.destroy());
+
+  it('shows the public counters and the state of each listener', async () => {
+    await render();
+    const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/public/stats')
+      .flush({
+        users: 12,
+        followedArtifacts: 340,
+        listeners: {
+          NPM: { lastSync: null, lastSeq: '123' },
+          MAVEN: { lastSync: minutesAgo(3) },
+          PYPI: { lastSync: minutesAgo(120) },
+          GO: { lastSync: minutesAgo(1) },
+          CARGO: { lastSync: null },
+        },
+      });
+    await new Promise((r) => setTimeout(r));
+    fixture.detectChanges();
+    const stats = el.querySelector('.stats') as HTMLElement;
+    expect(stats.textContent).toContain('12 users');
+    expect(stats.textContent).toContain('340 followed artifacts');
+    expect(stats.textContent).toContain('3 minutes ago');
+    expect(stats.textContent).toContain('2 hours ago');
+    expect([...stats.querySelectorAll('.dot')].map((d) => d.classList.contains('fresh'))).toEqual([
+      true,
+      true,
+      false,
+      true,
+      false,
+    ]);
+  });
 
   it('offers one button per configured provider, with its logo', async () => {
     await render();

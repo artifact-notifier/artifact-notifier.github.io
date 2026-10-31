@@ -127,6 +127,8 @@ describe('sync status and ecosystems', () => {
         { id: 'NpmArtifactListenerTimestamp', value: String(Date.parse('2026-10-23T10:00:00Z')) },
         { id: 'MavenArtifactListener', value: String(Date.parse('2026-10-23T11:00:00Z')) },
         { id: 'PypiArtifactListenerTimestamp', value: 'Thu, 23 Oct 2026 12:00:00 GMT' },
+        // Go's own sequence is the ISO timestamp of the index
+        { id: 'GoArtifactListener', value: '2026-10-23T13:00:00Z' },
       ],
     });
     const res = await api().get('/api/artifacts/sync-status').set(auth);
@@ -134,12 +136,14 @@ describe('sync status and ecosystems', () => {
       NPM: { lastSync: '2026-10-23T10:00:00.000Z', lastSeq: '123' },
       MAVEN: { lastSync: '2026-10-23T11:00:00.000Z', lastSeq: null },
       PYPI: { lastSync: '2026-10-23T12:00:00.000Z', lastSeq: null },
+      GO: { lastSync: '2026-10-23T13:00:00.000Z', lastSeq: null },
+      CARGO: { lastSync: null, lastSeq: null },
     });
   });
 
   it('exposes TEST outside production', async () => {
     const res = await api().get('/api/artifacts/ecosystems').set(auth);
-    expect(res.body).toEqual(['NPM', 'MAVEN', 'PYPI', 'TEST']);
+    expect(res.body).toEqual(['NPM', 'MAVEN', 'PYPI', 'GO', 'CARGO', 'TEST']);
   });
 });
 

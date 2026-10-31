@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from './mail/mail.service';
+import { UnsubscribeService } from './unsubscribe.service';
+import { frontendUrl } from '../auth/session';
 import { TelegramService } from '../telegram/telegram.service';
 import { t } from '../i18n/notifications.i18n';
 import { groupByProject, indexProjects, ProjectsByArtifact, projectsOf } from './digest';
@@ -32,6 +34,7 @@ export class NotificationsService implements OnModuleInit {
     private readonly mail: MailService,
     private readonly telegram: TelegramService,
     private readonly config: ConfigService,
+    private readonly unsubscribe: UnsubscribeService,
   ) {}
 
   async onModuleInit() {
@@ -87,6 +90,8 @@ export class NotificationsService implements OnModuleInit {
 
   private getChannels(prefs: UserPreferences | null): ('email' | 'telegram')[] {
     const ch = prefs?.notificationChannel || 'email';
+    // unsubscribed from mail without Telegram: notifications paused
+    if (ch === 'none') return [];
     if (ch === 'both') return ['email', 'telegram'];
     if (ch === 'telegram') return ['telegram'];
     return ['email'];
@@ -219,6 +224,7 @@ export class NotificationsService implements OnModuleInit {
         coordinates: d.event.coordinates,
         ecosystem: d.event.ecosystem,
         version: d.event.version,
+        followedArtifactId: d.event.followedArtifactId,
       }));
       const groups = groupByProject(lines, await this.projectsByArtifact(userId));
       try {
@@ -227,10 +233,16 @@ export class NotificationsService implements OnModuleInit {
           const to = prefs?.email && !/\.local$/i.test(prefs.email) ? prefs.email : user.email;
           if (/\.local$/i.test(to))
             throw new PermanentDeliveryError('No real email address set (Telegram-only account)');
+          const unsubscribe = this.unsubscribe.links({ userId });
           await this.mail.send(
             to,
             t(prefs?.locale, 'emailDigestSubject', lines.length),
-            this.mail.renderDigest(groups, prefs?.locale),
+            this.mail.renderDigest(groups, prefs?.locale, {
+              dashboard: frontendUrl(this.config),
+              unsubscribe: unsubscribe.page,
+              unfollow: (followedArtifactId) => this.unsubscribe.links({ userId, followedArtifactId }).page,
+            }),
+            unsubscribe.oneClick,
           );
         } else if (ch === 'telegram') {
           const chatId = this.getChatId(user, prefs);

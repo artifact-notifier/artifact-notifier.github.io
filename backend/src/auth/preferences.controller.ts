@@ -31,7 +31,7 @@ class UpdatePreferencesDto {
 
   @IsOptional()
   @IsString()
-  @IsIn(['email', 'telegram', 'both'])
+  @IsIn(['email', 'telegram', 'both', 'none'])
   notificationChannel?: string;
 
   @IsOptional()

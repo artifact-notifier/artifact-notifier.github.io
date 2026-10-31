@@ -39,7 +39,11 @@ import { valueOrUndefined } from '../shared/resource-value';
             {{ i18n.t()('preferences.channel.telegram') }}
           </option>
           <option value="both" [disabled]="!telegram.linked()">{{ i18n.t()('preferences.channel.both') }}</option>
+          <option value="none">{{ i18n.t()('preferences.channel.none') }}</option>
         </select>
+        @if (p.notificationChannel === 'none') {
+          <p class="muted" style="font-size:.8rem">{{ i18n.t()('preferences.channel.noneHint') }}</p>
+        }
         @if (!telegram.linked() && (p.notificationChannel === 'telegram' || p.notificationChannel === 'both')) {
           <p class="muted" style="color:#dc2626;font-size:.8rem">
             {{ i18n.t()('preferences.channel.telegramRequired') }}

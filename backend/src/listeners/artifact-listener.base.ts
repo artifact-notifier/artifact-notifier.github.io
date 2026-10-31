@@ -5,6 +5,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PublishedVersion } from '../artifacts/version-sources';
 import { compareVersions, isPrerelease } from '../artifacts/versions';
+import { matchesRules } from '../artifacts/version-rules';
 
 /**
  * Port of the Deno ArtifactListener base. Listeners poll/stream their ecosystem,
@@ -57,6 +58,10 @@ export abstract class ArtifactListener<T extends string | number> {
         return 'Maven';
       case Ecosystem.PYPI:
         return 'PyPI';
+      case Ecosystem.GO:
+        return 'Go';
+      case Ecosystem.CARGO:
+        return 'Cargo';
       default:
         return this.ecosystem;
     }
@@ -133,6 +138,10 @@ export abstract class ArtifactListener<T extends string | number> {
         this.logger.debug(`[${this.ecoLabel}] skip prerelease ${artifactId}@${version} user=${f.userId}`);
         continue;
       }
+      if (!matchesRules(version, f.rules)) {
+        this.logger.debug(`[${this.ecoLabel}] skip ${artifactId}@${version} filtered by rules user=${f.userId}`);
+        continue;
+      }
       if (notNewerThanUsed(f, version)) {
         this.logger.debug(`[${this.ecoLabel}] skip ${artifactId}@${version} not newer than used user=${f.userId}`);
         continue;
@@ -171,8 +180,8 @@ export abstract class ArtifactListener<T extends string | number> {
       where: { id: this.listenerName },
     });
     if (!row) return undefined;
-    const n = Number.parseInt(row.value, 10);
-    return (Number.isNaN(n) ? row.value : n) as T;
+    // numbers (sequences, ms timestamps) or strings (Go: ISO timestamp, which parseInt would cut to its year)
+    return (/^\d+$/.test(row.value) ? Number(row.value) : row.value) as T;
   }
 
   abstract sync(): Promise<void>;

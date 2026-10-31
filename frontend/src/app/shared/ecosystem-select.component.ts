@@ -1,7 +1,8 @@
 import { Component, signal, input, output, HostListener } from '@angular/core';
 import { EcoIconComponent } from './eco-icon.component';
+import { Ecosystem, REGISTRY_ECOSYSTEMS, ecoLabel } from './ecosystems';
 
-type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
+type Eco = Ecosystem;
 
 @Component({
   selector: 'ecosystem-select',
@@ -124,11 +125,11 @@ export class EcosystemSelectComponent {
   open = signal(false);
   // backend source via /api/artifacts/ecosystems (NODE_ENV) if provided, otherwise local fallback
   get choices(): Eco[] {
-    return this.options() ?? (['NPM', 'MAVEN', 'PYPI'] as Eco[]);
+    return this.options() ?? [...REGISTRY_ECOSYSTEMS];
   }
 
   label(e: Eco) {
-    return e === 'NPM' ? 'npm' : e === 'MAVEN' ? 'Maven' : e === 'PYPI' ? 'PyPI' : 'TEST';
+    return ecoLabel(e);
   }
 
   pick(e: Eco) {

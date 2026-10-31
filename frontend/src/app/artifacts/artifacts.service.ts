@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiConfigService } from '../core/api-config.service';
 import { AuthService } from '../core/auth.service';
+import { VersionRule } from './version-rules';
 
 interface Delivery {
   channel: string;
@@ -9,14 +10,21 @@ interface Delivery {
 }
 export interface FollowedArtifact {
   id: string;
-  ecosystem: 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
+  ecosystem: 'NPM' | 'MAVEN' | 'PYPI' | 'GO' | 'CARGO' | 'TEST';
   coordinates: string;
   currentVersion: string | null;
+  versionRules: VersionRule[];
+  /** null: the user's preference applies */
+  includePrereleases: boolean | null;
   events: { version: string; publishedAt: string; deliveries: Delivery[] }[];
 }
 export interface SearchResult {
   coordinates: string;
   description?: string;
+}
+export interface VersionsPreview {
+  defaultIncludePrereleases: boolean;
+  versions: { version: string; prerelease: boolean }[];
 }
 export type SyncStatus = Record<string, { lastSync: string | null; lastSeq?: string | null }>;
 
@@ -45,6 +53,23 @@ export class ArtifactsService {
   async unfollow(id: string): Promise<void> {
     const res = await fetch(this.url(`/${id}`), { method: 'DELETE', credentials: 'include', headers: this.headers() });
     if (!res.ok) throw { error: await res.json().catch(() => ({ message: res.statusText })) };
+  }
+
+  async setRules(id: string, rules: VersionRule[], includePrereleases: boolean | null): Promise<FollowedArtifact> {
+    const res = await fetch(this.url(`/${id}/rules`), {
+      method: 'PUT',
+      headers: this.headers({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify({ rules, includePrereleases }),
+    });
+    if (!res.ok) throw { error: await res.json().catch(() => ({ message: res.statusText })) };
+    return res.json();
+  }
+
+  async versions(id: string): Promise<VersionsPreview> {
+    const res = await fetch(this.url(`/${id}/versions`), { credentials: 'include', headers: this.headers() });
+    if (!res.ok) throw { error: await res.json().catch(() => ({ message: res.statusText })) };
+    return res.json();
   }
 
   // dev only: simulates a new version for a TEST artifact (full isolation)

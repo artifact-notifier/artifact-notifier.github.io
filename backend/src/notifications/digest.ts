@@ -4,6 +4,8 @@ export interface DigestLine {
   ecosystem: string;
   coordinates: string;
   version: string;
+  /** mail only: target of the line's "unfollow" link */
+  followedArtifactId?: string;
 }
 
 /** `project` null: follows outside any project. */

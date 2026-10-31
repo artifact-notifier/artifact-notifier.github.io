@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { Ecosystem } from '@prisma/client';
 
-// Same alphabet as FollowDto: npm names, Maven group:artifact, PyPI names
+// Same alphabet as FollowDto: npm names, Maven group:artifact, PyPI and crate names, Go module paths
 const COORDINATES = /^[\w.@/:-]+$/;
 export const DEP_SCOPES = [
   'prod',
@@ -26,7 +26,7 @@ export const DEP_SCOPES = [
   'bom',
   'module',
 ] as const;
-const IMPORTABLE = [Ecosystem.NPM, Ecosystem.MAVEN, Ecosystem.PYPI];
+const IMPORTABLE = [Ecosystem.NPM, Ecosystem.MAVEN, Ecosystem.PYPI, Ecosystem.GO, Ecosystem.CARGO];
 
 export class DependencyDto {
   @IsString()

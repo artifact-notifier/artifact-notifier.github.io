@@ -90,6 +90,96 @@ describe('artifacts', () => {
     const fa = await prisma.followedArtifact.create({ data: { userId: 'other', ecosystem: 'TEST', coordinates: 'x' } });
     expect((await api().delete(`/api/artifacts/${fa.id}`).set(auth())).status).toBe(404);
   });
+
+  describe('version rules', () => {
+    const C = 'org.example:lib';
+    async function followed() {
+      await prisma.knownVersions.create({
+        data: {
+          ecosystem: 'MAVEN',
+          coordinates: C,
+          versions: JSON.stringify(['5.2.0', '5.3.1', '6.0.0', '6.1.0-RC1']),
+        },
+      });
+      return prisma.followedArtifact.create({
+        data: { userId: 'u1', ecosystem: 'MAVEN', coordinates: C, currentVersion: '6.0.0' },
+      });
+    }
+
+    it('saves the rules, realigns the current version and lists them', async () => {
+      const fa = await followed();
+      const res = await api()
+        .put(`/api/artifacts/${fa.id}/rules`)
+        .set(auth())
+        .send({ rules: [{ type: 'include', pattern: '5.*' }], includePrereleases: null })
+        .expect(200);
+      expect(res.body).toMatchObject({
+        currentVersion: '5.3.1',
+        includePrereleases: null,
+        versionRules: [{ type: 'include', pattern: '5.*' }],
+      });
+      const list = await api().get('/api/artifacts').set(auth()).expect(200);
+      expect(list.body[0].versionRules).toEqual([{ type: 'include', pattern: '5.*' }]);
+
+      const cleared = await api()
+        .put(`/api/artifacts/${fa.id}/rules`)
+        .set(auth())
+        .send({ rules: [], includePrereleases: true })
+        .expect(200);
+      expect(cleared.body).toMatchObject({ currentVersion: '6.1.0-RC1', includePrereleases: true, versionRules: [] });
+      expect((await prisma.followedArtifact.findUnique({ where: { id: fa.id } }))?.versionRules).toBeNull();
+    });
+
+    it('rejects invalid rules and other users', async () => {
+      const fa = await followed();
+      const put = (body: object) => api().put(`/api/artifacts/${fa.id}/rules`).set(auth()).send(body);
+      expect((await put({ rules: [{ type: 'regex', pattern: '5.*' }] })).status).toBe(400);
+      expect((await put({ rules: [{ type: 'include', pattern: '(a+)+$' }] })).status).toBe(400);
+      expect((await put({ rules: [{ type: 'include', pattern: 'x'.repeat(65) }] })).status).toBe(400);
+      expect((await put({ rules: Array(21).fill({ type: 'include', pattern: '1.*' }) })).status).toBe(400);
+
+      await createUser(prisma, 'other');
+      const theirs = await prisma.followedArtifact.create({
+        data: { userId: 'other', ecosystem: 'MAVEN', coordinates: C },
+      });
+      expect((await api().put(`/api/artifacts/${theirs.id}/rules`).set(auth()).send({ rules: [] })).status).toBe(404);
+      expect((await api().get(`/api/artifacts/${theirs.id}/versions`).set(auth())).status).toBe(404);
+    });
+
+    it('previews the latest known versions, highest first', async () => {
+      const fa = await followed();
+      const res = await api().get(`/api/artifacts/${fa.id}/versions`).set(auth()).expect(200);
+      expect(res.body).toEqual({
+        defaultIncludePrereleases: false,
+        versions: [
+          { version: '6.1.0-RC1', prerelease: true },
+          { version: '6.0.0', prerelease: false },
+          { version: '5.3.1', prerelease: false },
+          { version: '5.2.0', prerelease: false },
+        ],
+      });
+    });
+  });
+});
+
+describe('public stats', () => {
+  it('counts users and distinct followed artifacts without a session, naming none', async () => {
+    await createUser(prisma, 'u2');
+    for (const [userId, ecosystem, coordinates] of [
+      ['u1', 'NPM', 'react'],
+      ['u2', 'NPM', 'react'],
+      ['u2', 'MAVEN', 'com.internal:secret'],
+      ['u1', 'TEST', 'dev/only'],
+    ] as const) {
+      await prisma.followedArtifact.create({ data: { userId, ecosystem, coordinates } });
+    }
+    await prisma.listenerSequence.create({ data: { id: 'MavenArtifactListener', value: '1790000000000' } });
+
+    const res = await api().get('/api/public/stats').expect(200);
+    expect(res.body).toMatchObject({ users: 2, followedArtifacts: 2 });
+    expect(res.body.listeners.MAVEN.lastSync).toBe(new Date(1790000000000).toISOString());
+    expect(JSON.stringify(res.body)).not.toMatch(/react|secret|u1|u2/);
+  });
 });
 
 describe('preferences', () => {

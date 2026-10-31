@@ -1,11 +1,11 @@
 # Artifact Notifier
 
 Full-stack application that tracks **real-time** new versions of artifacts
-published on **npm**, **Maven Central** and **PyPI**, and notifies users by email
+published on **npm**, **Maven Central**, **PyPI**, **Go modules** and **crates.io**, and notifies users by email
 (immediately or as a digest recap, as they choose).
 
 - **Backend**: Node + [NestJS](https://nestjs.com/) 12, Prisma + SQLite, multi-provider OIDC,
-  polling (npm, Maven/PyPI), email sending via SMTP (Mailtrap by default).
+  polling (npm, Maven/PyPI/Go/crates.io), email sending via SMTP (Mailtrap by default).
 - **Frontend**: [Angular](https://angular.dev/) 22, OIDC authentication and management of
   artifact subscriptions.
 
@@ -23,7 +23,8 @@ artifact-notifier/
 
 ### Data flow
 
-1. Listeners (npm SSE / Maven polling / PyPI RSS polling) receive new
+1. Listeners (npm changes feed / Maven polling / PyPI RSS / Go module index /
+   crates.io RSS, plus a periodic sweep of followed artifacts) receive new
    publications from their ecosystem.
 2. Each listener filters by the **set of followed artifacts** (cached, refreshed
    every 30 s). Everything else is ignored.
@@ -130,7 +131,7 @@ See `backend/prisma/schema.prisma`: `User`, `UserPreferences`, `FollowedArtifact
 - `KnownVersion` holds every version already seen per artifact (shared by all
   followers): any version not in it is notified, patches of older lines included.
 
-- `ListenerSequence` allows resuming npm/Maven/PyPI tracking where it stopped
+- `ListenerSequence` allows resuming npm/Maven/PyPI/Go/crates.io tracking where it stopped
   (`_changes` sequence / timestamp / RSS etag).
 
 ## Admin page

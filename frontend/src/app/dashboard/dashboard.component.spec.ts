@@ -22,6 +22,8 @@ const ARTIFACTS: FollowedArtifact[] = [
     ecosystem: 'MAVEN',
     coordinates: 'org.springframework.boot:spring-boot',
     currentVersion: '4.1.2',
+    versionRules: [],
+    includePrereleases: null,
     events: [
       {
         version: '4.1.2',
@@ -34,8 +36,24 @@ const ARTIFACTS: FollowedArtifact[] = [
       { version: '4.0.9', publishedAt: '2026-01-01T10:00:00Z', deliveries: [] },
     ],
   },
-  { id: 'a2', ecosystem: 'NPM', coordinates: '@angular/core', currentVersion: '22.2.3', events: [] },
-  { id: 'a3', ecosystem: 'PYPI', coordinates: 'django', currentVersion: '6.1.2', events: [] },
+  {
+    id: 'a2',
+    ecosystem: 'NPM',
+    coordinates: '@angular/core',
+    currentVersion: '22.2.3',
+    versionRules: [],
+    includePrereleases: null,
+    events: [],
+  },
+  {
+    id: 'a3',
+    ecosystem: 'PYPI',
+    coordinates: 'django',
+    currentVersion: '6.1.2',
+    versionRules: [],
+    includePrereleases: null,
+    events: [],
+  },
 ];
 
 describe('DashboardComponent', () => {
@@ -47,6 +65,8 @@ describe('DashboardComponent', () => {
     unfollow: vi.fn(),
     simulateTestVersion: vi.fn(),
     bumpTestVersion: vi.fn(),
+    versions: vi.fn(),
+    setRules: vi.fn(),
   };
 
   async function settle() {
@@ -177,6 +197,8 @@ describe('DashboardComponent', () => {
       ecosystem: 'NPM',
       coordinates: `pkg-${String(i).padStart(2, '0')}`,
       currentVersion: '1.0.0',
+      versionRules: [],
+      includePrereleases: null,
       events: [],
     }));
     const pager = () => el.querySelector('nav.pager') as HTMLElement;
@@ -463,12 +485,74 @@ describe('DashboardComponent', () => {
     });
   });
 
+  describe('version filters', () => {
+    const rulesButton = (coords: string) =>
+      [...el.querySelectorAll('.dense-row')]
+        .find((r) => r.querySelector('.coords-cell')?.textContent?.trim() === coords)!
+        .querySelector('.rules-btn') as HTMLButtonElement;
+    const dialog = () => el.querySelector('app-version-rules-dialog') as HTMLElement | null;
+    const chips = () => [...dialog()!.querySelectorAll('.chip')].map((c) => c.textContent!.trim());
+
+    it('counts the filters of a follow on its row', async () => {
+      await render(undefined, [
+        { ...ARTIFACTS[1], versionRules: [{ type: 'include', pattern: '22.*' }], includePrereleases: true },
+        ARTIFACTS[2],
+      ]);
+      expect(rulesButton('@angular/core').textContent).toContain('2 filter(s)');
+      expect(rulesButton('django').textContent!.trim()).toBe('⚙');
+    });
+
+    it('previews the edited rules on the known versions and saves them', async () => {
+      artifactsSvc.versions.mockResolvedValue({
+        defaultIncludePrereleases: false,
+        versions: [
+          { version: '6.0.0b1', prerelease: true },
+          { version: '5.2.1', prerelease: false },
+          { version: '4.2.9', prerelease: false },
+        ],
+      });
+      artifactsSvc.setRules.mockResolvedValue({});
+      await render();
+      rulesButton('django').click();
+      await settle();
+      expect(artifactsSvc.versions).toHaveBeenCalledWith('a3');
+      expect(chips()).toEqual(['✕ 6.0.0b1', '✓ 5.2.1', '✓ 4.2.9']);
+
+      button('+ Add a rule').click();
+      await settle();
+      const input = dialog()!.querySelector('.rule-row input') as HTMLInputElement;
+      input.value = '4.*';
+      input.dispatchEvent(new Event('input'));
+      await settle();
+      expect(chips()).toEqual(['✕ 6.0.0b1', '✕ 5.2.1', '✓ 4.2.9']);
+      expect(dialog()!.textContent).toContain('1 of 3 would be notified');
+
+      button('Save').click();
+      await settle();
+      expect(artifactsSvc.setRules).toHaveBeenCalledWith('a3', [{ type: 'include', pattern: '4.*' }], null);
+      expect(dialog()).toBeNull();
+    });
+
+    it('does not save an invalid pattern', async () => {
+      artifactsSvc.versions.mockResolvedValue({ defaultIncludePrereleases: false, versions: [] });
+      await render();
+      rulesButton('django').click();
+      await settle();
+      button('+ Add a rule').click();
+      await settle();
+      expect(button('Save').disabled).toBe(true);
+      expect(dialog()!.textContent).toContain('No known version');
+    });
+  });
+
   describe('test mode', () => {
     const testArtifact: FollowedArtifact = {
       id: 't1',
       ecosystem: 'TEST',
       coordinates: 'my/pkg',
       currentVersion: '1.0.0',
+      versionRules: [],
+      includePrereleases: null,
       events: [],
     };
 

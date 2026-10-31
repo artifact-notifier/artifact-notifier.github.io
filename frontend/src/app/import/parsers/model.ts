@@ -1,4 +1,4 @@
-export type ImportEcosystem = 'NPM' | 'MAVEN' | 'PYPI';
+export type ImportEcosystem = 'NPM' | 'MAVEN' | 'PYPI' | 'GO' | 'CARGO';
 
 // prod/parent/bom are checked by default in the UI; the others unchecked
 export type DepScope =
@@ -11,12 +11,13 @@ export type DepScope =
   | 'plugin'
   | 'parent'
   | 'bom'
-  // another module of the same multi-module (Maven reactor) project: not worth following
+  // another module of the same project (Maven reactor, Go module replaced locally, Cargo path
+  // dependency): not worth following
   | 'module';
 
 export interface ParsedDependency {
   ecosystem: ImportEcosystem;
-  /** npm name | Maven "groupId:artifactId" | PyPI PEP 503 normalized name */
+  /** npm name | Maven "groupId:artifactId" | PyPI PEP 503 normalized name | Go module path | lowercase crate name */
   coordinates: string;
   /** range/spec as written in the manifest */
   declared?: string;
@@ -50,7 +51,7 @@ export interface ParseResult {
 export interface ManifestResult {
   dependencies: ParsedDependency[];
   warnings: string[];
-  /** coordinates of the artifact this manifest builds (Maven), to spot sibling modules */
+  /** coordinates of the artifact this manifest builds (Maven, Go, Cargo), to spot sibling modules */
   self?: string;
 }
 

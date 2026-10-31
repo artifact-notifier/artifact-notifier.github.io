@@ -1,14 +1,36 @@
 import { Component, computed, inject, effect, ElementRef, viewChild, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { httpResource } from '@angular/common/http';
+import { ApiConfigService } from '../core/api-config.service';
+import { SyncStatus } from '../artifacts/artifacts.service';
+import { EcoIconComponent } from '../shared/eco-icon.component';
+import { REGISTRY_ECOSYSTEMS } from '../shared/ecosystems';
 import { AuthService } from '../core/auth.service';
 import { I18nService } from '../core/i18n.service';
 import { TelegramService } from '../core/telegram.service';
 import { Router } from '@angular/router';
 import { valueOrUndefined } from '../shared/resource-value';
 
+interface PublicStats {
+  users: number;
+  followedArtifacts: number;
+  listeners: SyncStatus;
+}
+
+// listeners poll every minute, and sweep followed artifacts every 30 minutes
+const STALE_AFTER_MS = 15 * 60_000;
+
+function relative(rtf: Intl.RelativeTimeFormat, ms: number): string {
+  const min = Math.round(ms / 60_000);
+  if (min < 1) return rtf.format(-Math.max(0, Math.round(ms / 1000)), 'second');
+  if (min < 60) return rtf.format(-min, 'minute');
+  if (min < 48 * 60) return rtf.format(-Math.round(min / 60), 'hour');
+  return rtf.format(-Math.round(min / 1440), 'day');
+}
+
 @Component({
   selector: 'app-login',
-  imports: [CommonModule],
+  imports: [CommonModule, EcoIconComponent],
   template: `
     <div class="container">
       <div class="card">
@@ -22,6 +44,29 @@ import { valueOrUndefined } from '../shared/resource-value';
             <li>{{ i18n.t()('login.intro.3') }}</li>
           </ul>
         </div>
+        @if (stats(); as s) {
+          <div class="stats">
+            <p>
+              <span
+                >👥 <strong>{{ s.users }}</strong> {{ i18n.t()('login.stats.users', { n: '' + s.users }) }}</span
+              >
+              <span
+                >📦 <strong>{{ s.followedArtifacts }}</strong>
+                {{ i18n.t()('login.stats.artifacts', { n: '' + s.followedArtifacts }) }}</span
+              >
+            </p>
+            <p class="listeners">
+              <span class="muted">{{ i18n.t()('dashboard.sync.lastSync') }} :</span>
+              @for (l of listeners(); track l.eco) {
+                <span [title]="i18n.t()(l.fresh ? 'login.stats.fresh' : 'login.stats.stale')">
+                  <span class="dot" [class.fresh]="l.fresh" aria-hidden="true"></span>
+                  <eco-icon [ecosystem]="l.eco" />
+                  {{ l.label }}
+                </span>
+              }
+            </p>
+          </div>
+        }
         @if (error) {
           <p style="color:#dc2626">{{ i18n.t()('login.error', { msg: error }) }}</p>
         }
@@ -84,6 +129,34 @@ import { valueOrUndefined } from '../shared/resource-value';
         margin: 0.25rem 0;
         font-size: 0.9rem;
       }
+      .stats {
+        margin: 0.75rem 0;
+        font-size: 0.9rem;
+      }
+      .stats p {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem 1rem;
+        align-items: center;
+        margin: 0.3rem 0;
+      }
+      .stats .listeners {
+        font-size: 0.8rem;
+      }
+      .stats .listeners > span {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #eab308;
+      }
+      .dot.fresh {
+        background: #16a34a;
+      }
       .provider-btn {
         display: inline-flex;
         align-items: center;
@@ -108,10 +181,25 @@ import { valueOrUndefined } from '../shared/resource-value';
 })
 export class LoginComponent {
   private auth = inject(AuthService);
+  private api = inject(ApiConfigService);
   protected i18n = inject(I18nService);
   protected telegram = inject(TelegramService);
   private router = inject(Router);
   protected readonly providers = computed(() => valueOrUndefined(this.auth.providers));
+  private readonly statsRes = httpResource<PublicStats>(() => ({ url: this.api.apiUrl('/api/public/stats') }));
+  protected readonly stats = computed(() => valueOrUndefined(this.statsRes));
+  /** Last sync of each listener, "fresh" when recent enough to call it running. */
+  protected readonly listeners = computed(() => {
+    const s = this.stats()?.listeners ?? {};
+    const rtf = new Intl.RelativeTimeFormat(this.i18n.lang(), { numeric: 'auto' });
+    return REGISTRY_ECOSYSTEMS.map((eco) => {
+      const iso = s[eco]?.lastSync;
+      const ago = iso ? Date.now() - new Date(iso).getTime() : null;
+      // npm streams changes: a sequence without timestamp still means it runs
+      const fresh = ago === null ? !!s[eco]?.lastSeq : ago < STALE_AFTER_MS;
+      return { eco, fresh, label: ago === null ? '—' : relative(rtf, ago) };
+    });
+  });
   error = '';
   // signal: set from the widget's async callbacks, which zoneless change detection doesn't see
   readonly telegramError = signal('');

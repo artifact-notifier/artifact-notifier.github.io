@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
 import { NotificationsService } from '../src/notifications/notifications.service';
+import { UnsubscribeService } from '../src/notifications/unsubscribe.service';
 import { createUser, resetDb } from './db';
 
 const prisma = new PrismaClient();
@@ -14,7 +15,8 @@ const notifications = new NotificationsService(
   prisma as any,
   mail as any,
   telegram as any,
-  new ConfigService({ MAIL_MIN_DIGEST_INTERVAL_MINUTES: 1440 }),
+  new ConfigService({ MAIL_MIN_DIGEST_INTERVAL_MINUTES: 1440, FRONTEND_URL: 'http://localhost:4200' }),
+  new UnsubscribeService(prisma as any, new ConfigService({ JWT_SECRET: 'test' })),
 );
 
 async function follow(userId: string) {
@@ -55,6 +57,27 @@ describe('NotificationsService', () => {
     await Promise.all([notifications.processDigest(), notifications.processDigest()]);
 
     expect(mail.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends the digest mail with unsubscribe links and the one-click header', async () => {
+    await createUser(prisma, 'u1', { notificationMode: 'DIGEST', notificationChannel: 'email' });
+    const fa = await follow('u1');
+    await notifications.onNewVersion(fa.id, 'u1', 'NPM', 'pkg', '1.0.0');
+    await notifications.processDigest();
+
+    const [groups, , links] = mail.renderDigest.mock.calls[0] as unknown[] as [any, string, any];
+    expect(groups[0].items[0].followedArtifactId).toBe(fa.id);
+    expect(links.dashboard).toBe('http://localhost:4200');
+    expect(links.unsubscribe).toMatch(/\/#\/unsubscribe\?token=/);
+    expect(links.unfollow(fa.id)).not.toBe(links.unsubscribe);
+    expect(mail.send.mock.calls[0][3]).toMatch(/\/api\/unsubscribe\?token=/);
+  });
+
+  it('creates no delivery while notifications are paused', async () => {
+    await createUser(prisma, 'u1', { notificationChannel: 'none' });
+    const fa = await follow('u1');
+    await notifications.onNewVersion(fa.id, 'u1', 'NPM', 'pkg', '1.0.0');
+    expect(await deliveries('u1')).toEqual([]);
   });
 
   it('retries a transient failure after a backoff instead of dropping it', async () => {
@@ -160,6 +183,7 @@ describe('NotificationsService', () => {
         { project: null, items: [expect.objectContaining({ coordinates: 'solo' })] },
       ],
       'fr',
+      expect.anything(),
     );
   });
 });

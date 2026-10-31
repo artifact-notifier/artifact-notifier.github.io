@@ -203,3 +203,35 @@ describe('helpers', () => {
     ).toEqual([{ ecosystem: 'NPM', coordinates: 'x', declared: '^1', scope: 'prod', version: '1.2.0' }]);
   });
 });
+
+describe('Go and Cargo projects', () => {
+  it('supports go.mod, Cargo.toml and Cargo.lock, not go.sum', () => {
+    expect(['go.mod', 'svc/Cargo.toml', 'Cargo.lock'].every(isSupportedFile)).toBe(true);
+    expect(isSupportedFile('go.sum')).toBe(false);
+  });
+
+  it('applies a workspace Cargo.lock to its member crates, and marks crates of the workspace as internal', async () => {
+    const result = await parseProjectFiles([
+      { path: 'Cargo.toml', content: '[workspace]\nmembers = ["api", "core"]\n' },
+      { path: 'Cargo.lock', content: '[[package]]\nname = "serde"\nversion = "1.0.229"\nsource = "registry+x"\n' },
+      { path: 'api/Cargo.toml', content: '[package]\nname = "api"\n[dependencies]\nserde = "1"\ncore = "0.1"\n' },
+      { path: 'core/Cargo.toml', content: '[package]\nname = "core"\n[dependencies]\nserde = "1"\n' },
+    ]);
+    expect(result.errors).toEqual([]);
+    const api = result.sources.find((s) => s.label === 'api/Cargo.toml')!;
+    expect(api.files).toEqual(['api/Cargo.toml', 'Cargo.lock']);
+    expect(api.dependencies.map((d) => [d.coordinates, d.scope, d.version])).toEqual([
+      ['serde', 'prod', '1.0.229'],
+      ['core', 'module', undefined],
+    ]);
+  });
+
+  it('only marks siblings of the same ecosystem as internal', async () => {
+    const result = await parseProjectFiles([
+      { path: 'go/go.mod', content: 'module example.com/serde\n' },
+      { path: 'rs/Cargo.toml', content: '[package]\nname = "x"\n[dependencies]\n"example.com/serde" = "1"\n' },
+    ]);
+    const rs = result.sources.find((s) => s.ecosystem === 'CARGO')!;
+    expect(rs.dependencies[0].scope).toBe('prod');
+  });
+});

@@ -96,7 +96,17 @@ describe('ImportComponent', () => {
   });
 
   it('marks already followed dependencies and does not follow them again', async () => {
-    await render(undefined, [{ id: 'f1', ecosystem: 'NPM', coordinates: 'rxjs', currentVersion: null, events: [] }]);
+    await render(undefined, [
+      {
+        id: 'f1',
+        ecosystem: 'NPM',
+        coordinates: 'rxjs',
+        currentVersion: null,
+        versionRules: [],
+        includePrereleases: null,
+        events: [],
+      },
+    ]);
     await pick([file('package.json', PACKAGE_JSON)]);
     expect(el.textContent).toContain('already followed');
     projectsSvc.importProject.mockResolvedValue({ projectId: 'p9', followed: 1, failed: [], orphans: [] });

@@ -12,8 +12,10 @@ import { ApiConfigService } from '../core/api-config.service';
 import { valueOrUndefined } from '../shared/resource-value';
 import { RouterLink } from '@angular/router';
 import { artifactKey, Project, ProjectsService } from '../projects/projects.service';
+import { VersionRulesDialogComponent } from './version-rules-dialog.component';
+import { Ecosystem, REGISTRY_ECOSYSTEMS, ecoLabel } from '../shared/ecosystems';
 
-type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
+type Eco = Ecosystem;
 type FilterEco = 'ALL' | Eco;
 
 const PAGE_SIZE_KEY = 'artifact-notifier.pageSize';
@@ -29,7 +31,14 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [CommonModule, FormsModule, RouterLink, EcoIconComponent, EcosystemSelectComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    EcoIconComponent,
+    EcosystemSelectComponent,
+    VersionRulesDialogComponent,
+  ],
   template: `
     <h1>{{ i18n.t()('dashboard.title') }}</h1>
     @if (syncStatus(); as s) {
@@ -42,12 +51,11 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
               s['NPM']?.lastSync ? fmtSync(s['NPM'].lastSync) : s['NPM']?.lastSeq ? '#' + s['NPM'].lastSeq : '—'
             }}</span
           >
-          <span [title]="'Maven: ' + fmtAbsolute(s['MAVEN']?.lastSync)"
-            ><eco-icon ecosystem="MAVEN" /> {{ fmtSync(s['MAVEN']?.lastSync) }}</span
-          >
-          <span [title]="'PyPI: ' + fmtAbsolute(s['PYPI']?.lastSync)"
-            ><eco-icon ecosystem="PYPI" /> {{ fmtSync(s['PYPI']?.lastSync) }}</span
-          >
+          @for (eco of polledEcos; track eco) {
+            <span [title]="ecoLabel(eco) + ': ' + fmtAbsolute(s[eco]?.lastSync)"
+              ><eco-icon [ecosystem]="eco" /> {{ fmtSync(s[eco]?.lastSync) }}</span
+            >
+          }
         </span>
       </div>
     }
@@ -64,7 +72,9 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
             (keydown)="onKeydown($event)"
             (focus)="open.set(true)"
             (blur)="onBlur()"
-            [placeholder]="i18n.t()('dashboard.search.placeholder')"
+            [placeholder]="
+              i18n.t()(ecosystem() === 'GO' ? 'dashboard.search.placeholder.go' : 'dashboard.search.placeholder')
+            "
             autocomplete="off"
             role="combobox"
             aria-controls="artifact-suggest"
@@ -96,7 +106,9 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
                 </li>
               }
               @if (results().length === 0) {
-                <li class="muted empty">{{ i18n.t()('dashboard.search.noResult') }}</li>
+                <li class="muted empty">
+                  {{ i18n.t()(ecosystem() === 'GO' ? 'dashboard.search.noResult.go' : 'dashboard.search.noResult') }}
+                </li>
               } @else {
                 <li class="suggest-hint muted">{{ i18n.t()('dashboard.search.hint') }}</li>
               }
@@ -169,9 +181,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
           @for (eco of availableEcos(); track eco) {
             <button class="chip" [class.active]="filterEco() === eco" (click)="filterEco.set(eco)">
               <eco-icon [ecosystem]="eco" />
-              {{ eco === 'TEST' ? 'TEST' : eco === 'NPM' ? 'npm' : eco === 'MAVEN' ? 'Maven' : 'PyPI' }} ({{
-                countByEco(eco)
-              }})
+              {{ ecoLabel(eco) }} ({{ countByEco(eco) }})
             </button>
           }
         </div>
@@ -252,6 +262,16 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
                   i18n.t()('dashboard.events.none')
                 }}</span>
               }
+              <button
+                type="button"
+                class="link rules-btn"
+                [class.active]="filterCount(a) > 0"
+                (click)="editingRules.set(a)"
+                [title]="i18n.t()('rules.title')"
+              >
+                ⚙
+                {{ filterCount(a) ? i18n.t()('dashboard.filters', { n: '' + filterCount(a) }) : '' }}
+              </button>
               <span
                 style="width:110px;text-align:right;display:flex;gap:.3rem;justify-content:flex-end;align-items:center"
               >
@@ -351,6 +371,10 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
         }
       }
     </div>
+
+    @if (editingRules(); as a) {
+      <app-version-rules-dialog [artifact]="a" (saved)="onRulesSaved()" (closed)="editingRules.set(null)" />
+    }
 
     @if (pending(); as p) {
       <!-- backdrop click closes, clicks inside the dialog don't -->
@@ -672,6 +696,13 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
       cursor: pointer;
       padding: 0 0.2rem;
     }
+    .rules-btn {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .rules-btn.active {
+      color: #2563eb;
+    }
     .events-detail {
       display: flex;
       flex-direction: column;
@@ -750,6 +781,9 @@ export class DashboardComponent {
   protected readonly i18n = inject(I18nService);
 
   protected readonly ecosystem = signal<Eco>('NPM');
+  protected readonly ecoLabel = ecoLabel;
+  // listeners whose last sync is a date (npm may only have a sequence)
+  protected readonly polledEcos = REGISTRY_ECOSYSTEMS.filter((e) => e !== 'NPM');
   // test mode (dev only, isolated) — shown only if the backend exposes it via NODE_ENV
   protected readonly testCoords = signal('');
   protected readonly testVersion = signal('1.1.0');
@@ -759,7 +793,7 @@ export class DashboardComponent {
     this.auth.user() ? { url: this.api.apiUrl('/api/artifacts/ecosystems') } : undefined,
   );
   protected readonly availableEcos = computed(
-    () => (valueOrUndefined(this.ecosystemsRes) as Eco[] | undefined) ?? (['NPM', 'MAVEN', 'PYPI'] as Eco[]),
+    () => (valueOrUndefined(this.ecosystemsRes) as Eco[] | undefined) ?? [...REGISTRY_ECOSYSTEMS],
   );
   protected readonly isTestEnabled = computed(() => this.availableEcos().includes('TEST'));
   protected readonly query = signal('');
@@ -767,6 +801,7 @@ export class DashboardComponent {
   protected readonly open = signal(false);
   protected readonly activeIndex = signal(0);
   protected readonly pending = signal<FollowedArtifact | null>(null);
+  protected readonly editingRules = signal<FollowedArtifact | null>(null);
 
   protected readonly projectsSvc = inject(ProjectsService);
   /** 'ALL', 'NONE' (followed outside any project) or a project id */
@@ -1031,6 +1066,18 @@ export class DashboardComponent {
     } catch (e: any) {
       this.toast.show(e?.error?.message || this.i18n.t()('dashboard.follow.error'), 'error');
     }
+  }
+
+  /** Rules plus the prerelease override, if any. */
+  filterCount(a: FollowedArtifact): number {
+    return (
+      (a.versionRules?.length ?? 0) + (a.includePrereleases === null || a.includePrereleases === undefined ? 0 : 1)
+    );
+  }
+
+  onRulesSaved() {
+    this.editingRules.set(null);
+    this.artifactsRes.reload();
   }
 
   requestUnfollow(a: FollowedArtifact) {

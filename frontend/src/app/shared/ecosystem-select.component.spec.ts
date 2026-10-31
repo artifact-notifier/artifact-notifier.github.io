@@ -1,8 +1,9 @@
 import { Component, provideZonelessChangeDetection, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { EcosystemSelectComponent } from './ecosystem-select.component';
+import { Ecosystem } from './ecosystems';
 
-type Eco = 'NPM' | 'MAVEN' | 'PYPI' | 'TEST';
+type Eco = Ecosystem;
 
 @Component({
   imports: [EcosystemSelectComponent],
@@ -33,12 +34,12 @@ describe('EcosystemSelectComponent', () => {
     return { fixture, el, trigger, open, optionLabels };
   }
 
-  it('lists npm, Maven and PyPI by default and marks the current one', () => {
+  it('lists every registry by default and marks the current one', () => {
     const { el, trigger, open, optionLabels } = render();
     expect(trigger.textContent).toContain('npm');
     open();
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    expect(optionLabels()).toEqual(['npm ✓', 'Maven', 'PyPI']);
+    expect(optionLabels()).toEqual(['npm ✓', 'Maven', 'PyPI', 'Go', 'Cargo']);
     expect(el.querySelector('[aria-selected=true]')?.textContent).toContain('npm');
   });
 

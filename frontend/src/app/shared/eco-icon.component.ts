@@ -1,4 +1,5 @@
 import { Component, input } from '@angular/core';
+import { Ecosystem } from './ecosystems';
 
 @Component({
   selector: 'eco-icon',
@@ -35,6 +36,26 @@ import { Component, input } from '@angular/core';
           loading="eager"
         />
       }
+      @case ('GO') {
+        <img
+          src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/go/go-original-wordmark.svg"
+          alt="Go"
+          width="32"
+          height="32"
+          class="eco-img"
+          loading="eager"
+        />
+      }
+      @case ('CARGO') {
+        <img
+          src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/rust/rust-original.svg"
+          alt="Cargo"
+          width="32"
+          height="32"
+          class="eco-img mono-icon"
+          loading="eager"
+        />
+      }
       @case ('TEST') {
         <span class="test-icon" role="img" aria-label="TEST">🧪</span>
       }
@@ -52,6 +73,10 @@ import { Component, input } from '@angular/core';
       height: 32px;
       object-fit: contain;
     }
+    /* black logo: light in dark mode */
+    :host-context(html.dark) .mono-icon {
+      filter: invert(1);
+    }
     .test-icon {
       font-size: 24px;
       line-height: 32px;
@@ -61,5 +86,5 @@ import { Component, input } from '@angular/core';
   `,
 })
 export class EcoIconComponent {
-  ecosystem = input.required<'NPM' | 'MAVEN' | 'PYPI' | 'TEST'>();
+  ecosystem = input.required<Ecosystem>();
 }

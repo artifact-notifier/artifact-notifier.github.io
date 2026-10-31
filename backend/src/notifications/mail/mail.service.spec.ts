@@ -57,4 +57,30 @@ describe('MailService', () => {
     );
     expect(html.match(/<h3>[^<]*<\/h3>/g)).toEqual(['<h3>📁 shop &lt;b&gt;</h3>', '<h3>Hors projet</h3>']);
   });
+
+  it('links each line to its unfollow page, and the footer to the dashboard and the unsubscribe page', () => {
+    const html = service.renderDigest(
+      [{ project: null, items: [{ ecosystem: 'NPM', coordinates: 'a', version: '1', followedArtifactId: 'f1' }] }],
+      'en',
+      {
+        dashboard: 'https://app.test',
+        unsubscribe: 'https://app.test/u?all',
+        unfollow: (id) => `https://app.test/u?${id}`,
+      },
+    );
+    expect(html).toContain('<a href="https://app.test/u?f1" style="font-size:12px;color:#6b7280">Unfollow</a>');
+    expect(html).toContain('<a href="https://app.test">Manage my subscriptions</a>');
+    expect(html).toContain('<a href="https://app.test/u?all">Stop receiving these emails</a>');
+  });
+
+  it('adds the one-click unsubscribe headers when given a URL', async () => {
+    const sendMail = jest.spyOn((service as any).transporter, 'sendMail').mockResolvedValue({});
+    await service.send('to@example.test', 's', 'h', 'https://api.test/api/unsubscribe?token=t');
+    expect(sendMail.mock.lastCall?.[0]).toMatchObject({
+      headers: {
+        'List-Unsubscribe': '<https://api.test/api/unsubscribe?token=t>',
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+    });
+  });
 });

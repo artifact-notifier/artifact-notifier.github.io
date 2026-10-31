@@ -4,7 +4,7 @@ import { ApiConfigService } from '../core/api-config.service';
 import { AuthService } from '../core/auth.service';
 import { valueOrUndefined } from '../shared/resource-value';
 
-type ProjectEcosystem = 'NPM' | 'MAVEN' | 'PYPI';
+type ProjectEcosystem = 'NPM' | 'MAVEN' | 'PYPI' | 'GO' | 'CARGO';
 
 export interface ProjectDependency {
   coordinates: string;

@@ -10,7 +10,7 @@ export interface Preferences {
   digestIntervalMinutes: number;
   locale: 'fr' | 'en' | 'es' | 'de' | 'zh';
   theme: 'light' | 'dark' | 'system';
-  notificationChannel: 'email' | 'telegram' | 'both';
+  notificationChannel: 'email' | 'telegram' | 'both' | 'none';
   telegramChatId?: string | null;
   includePrereleases: boolean;
 }

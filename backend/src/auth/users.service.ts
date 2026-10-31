@@ -441,7 +441,12 @@ export class UsersService {
     }
 
     // Immediate is Telegram-only; mail is digest-only.
-    if (mode === NotificationMode.IMMEDIATE && !(IMMEDIATE_CHANNELS as readonly string[]).includes(channel)) {
+    // 'none' (paused) keeps whatever mode it had
+    if (
+      mode === NotificationMode.IMMEDIATE &&
+      channel !== 'none' &&
+      !(IMMEDIATE_CHANNELS as readonly string[]).includes(channel)
+    ) {
       throw new BadRequestException('IMMEDIATE mode is only available for the telegram channel');
     }
     const interval = dto.digestIntervalMinutes ?? existing?.digestIntervalMinutes ?? 1440;
@@ -457,7 +462,7 @@ export class UsersService {
     if (dto.digestIntervalMinutes !== undefined) data.digestIntervalMinutes = dto.digestIntervalMinutes;
     if (dto.locale && ['fr', 'en', 'es', 'de', 'zh'].includes(dto.locale)) data.locale = dto.locale;
     if (dto.theme && ['light', 'dark', 'system'].includes(dto.theme)) data.theme = dto.theme;
-    if (dto.notificationChannel && ['email', 'telegram', 'both'].includes(dto.notificationChannel))
+    if (dto.notificationChannel && ['email', 'telegram', 'both', 'none'].includes(dto.notificationChannel))
       data.notificationChannel = dto.notificationChannel;
     if (dto.includePrereleases !== undefined) data.includePrereleases = dto.includePrereleases;
 

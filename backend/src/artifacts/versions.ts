@@ -1,3 +1,5 @@
+import { matchesRules, VersionRule } from './version-rules';
+
 /**
  * Version ordering shared by all ecosystems (Maven ComparableVersion-like,
  * also correct for semver and the common PEP 440 forms).
@@ -78,10 +80,18 @@ export function isPrerelease(version: string): boolean {
   return PRERELEASE_RE.test(version.toLowerCase().split('+')[0]);
 }
 
-/** Highest version, stable first: prereleases only count if allowed or if nothing else exists. */
-export function pickCurrentVersion(versions: string[], includePrereleases: boolean): string | null {
-  const stable = includePrereleases ? versions : versions.filter((v) => !isPrerelease(v));
-  const pool = stable.length ? stable : versions;
+/**
+ * Highest version among those the follow's rules let through, stable first:
+ * prereleases only count if allowed or if nothing else exists.
+ */
+export function pickCurrentVersion(
+  versions: string[],
+  includePrereleases: boolean,
+  rules: VersionRule[] = [],
+): string | null {
+  const wanted = versions.filter((v) => matchesRules(v, rules));
+  const stable = includePrereleases ? wanted : wanted.filter((v) => !isPrerelease(v));
+  const pool = stable.length ? stable : wanted;
   if (!pool.length) return null;
   return pool.reduce((max, v) => (compareVersions(v, max) > 0 ? v : max), pool[0]);
 }

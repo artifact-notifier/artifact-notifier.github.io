@@ -5,9 +5,12 @@ import { DashboardComponent } from './dashboard/dashboard.component';
 import { PreferencesComponent } from './preferences/preferences.component';
 import { AdminComponent } from './admin/admin.component';
 import { ProjectComponent } from './projects/project.component';
+import { UnsubscribeComponent } from './unsubscribe/unsubscribe.component';
 
 export const routes: Routes = [
   { path: 'login', component: LoginComponent },
+  // public: reached from mail links, the token is the authorization
+  { path: 'unsubscribe', component: UnsubscribeComponent },
   { path: 'auth/callback', component: DashboardComponent, canActivate: [authGuard] },
   { path: 'preferences', component: PreferencesComponent, canActivate: [authGuard] },
   { path: 'admin', component: AdminComponent, canActivate: [adminGuard] },

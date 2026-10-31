@@ -120,7 +120,7 @@ describe('admin stats', () => {
       events7d: 2,
     });
     expect(res.body.system).toMatchObject({ version: 'dev', databaseBytes: expect.any(Number) });
-    expect(Object.keys(res.body.listeners).sort()).toEqual(['MAVEN', 'NPM', 'PYPI']);
+    expect(Object.keys(res.body.listeners).sort()).toEqual(['CARGO', 'GO', 'MAVEN', 'NPM', 'PYPI']);
   });
 });
 

@@ -86,4 +86,10 @@ describe('pickCurrentVersion', () => {
   it('returns null for no versions', () => {
     expect(pickCurrentVersion([], false)).toBeNull();
   });
+
+  it('only considers the versions the rules let through', () => {
+    expect(pickCurrentVersion(springBoot, false, [{ type: 'include', pattern: '4.0.*' }])).toBe('4.0.9');
+    expect(pickCurrentVersion(springBoot, true, [{ type: 'exclude', pattern: '*-RC*' }])).toBe('4.2.0-M2');
+    expect(pickCurrentVersion(springBoot, false, [{ type: 'include', pattern: '9.*' }])).toBeNull();
+  });
 });

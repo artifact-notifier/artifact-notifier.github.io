@@ -1,6 +1,9 @@
 type Locale = 'fr' | 'en' | 'es' | 'de' | 'zh';
 const D: Record<Locale, any> = {
   fr: {
+    emailUnfollow: 'Ne plus suivre',
+    emailManage: 'Gérer mes abonnements',
+    emailUnsubscribe: 'Ne plus recevoir ces emails',
     digestNoProject: 'Hors projet',
     emailImmediateSubject: (c: string, v: string) => `Nouvelle version : ${c}@${v}`,
     emailDigestSubject: (n: number) => `Récapitulatif : ${n} nouvelle(s) version(s)`,
@@ -17,6 +20,9 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Récapitulatif — ${n} nouvelle(s) version(s)</b>`,
   },
   en: {
+    emailUnfollow: 'Unfollow',
+    emailManage: 'Manage my subscriptions',
+    emailUnsubscribe: 'Stop receiving these emails',
     digestNoProject: 'Outside any project',
     emailImmediateSubject: (c: string, v: string) => `New version: ${c}@${v}`,
     emailDigestSubject: (n: number) => `Digest: ${n} new version(s)`,
@@ -33,6 +39,9 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Digest — ${n} new version(s)</b>`,
   },
   es: {
+    emailUnfollow: 'Dejar de seguir',
+    emailManage: 'Gestionar mis suscripciones',
+    emailUnsubscribe: 'No recibir más estos correos',
     digestNoProject: 'Fuera de proyecto',
     emailImmediateSubject: (c: string, v: string) => `Nueva versión: ${c}@${v}`,
     emailDigestSubject: (n: number) => `Resumen: ${n} nueva(s) versión(es)`,
@@ -49,6 +58,9 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Resumen — ${n} nueva(s) versión(es)</b>`,
   },
   de: {
+    emailUnfollow: 'Nicht mehr folgen',
+    emailManage: 'Abonnements verwalten',
+    emailUnsubscribe: 'Diese E-Mails nicht mehr erhalten',
     digestNoProject: 'Ohne Projekt',
     emailImmediateSubject: (c: string, v: string) => `Neue Version: ${c}@${v}`,
     emailDigestSubject: (n: number) => `Zusammenfassung: ${n} neue Version(en)`,
@@ -65,6 +77,9 @@ const D: Record<Locale, any> = {
     telegramDigestHeader: (n: number) => `📦 <b>Zusammenfassung — ${n} neue Version(en)</b>`,
   },
   zh: {
+    emailUnfollow: '取消关注',
+    emailManage: '管理我的订阅',
+    emailUnsubscribe: '不再接收这些邮件',
     digestNoProject: '不属于任何项目',
     emailImmediateSubject: (c: string, v: string) => `新版本：${c}@${v}`,
     emailDigestSubject: (n: number) => `汇总：${n} 个新版本`,
