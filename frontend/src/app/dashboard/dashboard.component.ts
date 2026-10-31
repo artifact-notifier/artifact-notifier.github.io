@@ -269,7 +269,7 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
                 (click)="editingRules.set(a)"
                 [title]="i18n.t()('rules.title')"
               >
-                ⚙
+                <span class="gear" aria-hidden="true">⚙</span>
                 {{ filterCount(a) ? i18n.t()('dashboard.filters', { n: '' + filterCount(a) }) : '' }}
               </button>
               <span
@@ -699,6 +699,13 @@ type SortBy = 'name_asc' | 'name_desc' | 'type_asc' | 'type_desc';
     .rules-btn {
       color: var(--muted);
       white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+    .rules-btn .gear {
+      font-size: 1.15rem;
+      line-height: 1;
     }
     .rules-btn.active {
       color: #2563eb;

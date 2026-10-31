@@ -4,7 +4,7 @@ import { httpResource } from '@angular/common/http';
 import { ApiConfigService } from '../core/api-config.service';
 import { SyncStatus } from '../artifacts/artifacts.service';
 import { EcoIconComponent } from '../shared/eco-icon.component';
-import { REGISTRY_ECOSYSTEMS } from '../shared/ecosystems';
+import { REGISTRY_ECOSYSTEMS, ecoLabel } from '../shared/ecosystems';
 import { AuthService } from '../core/auth.service';
 import { I18nService } from '../core/i18n.service';
 import { TelegramService } from '../core/telegram.service';
@@ -20,12 +20,13 @@ interface PublicStats {
 // listeners poll every minute, and sweep followed artifacts every 30 minutes
 const STALE_AFTER_MS = 15 * 60_000;
 
-function relative(rtf: Intl.RelativeTimeFormat, ms: number): string {
+/** Elapsed time as [value, unit], in the largest sensible unit. */
+function elapsed(ms: number): [number, 'second' | 'minute' | 'hour' | 'day'] {
   const min = Math.round(ms / 60_000);
-  if (min < 1) return rtf.format(-Math.max(0, Math.round(ms / 1000)), 'second');
-  if (min < 60) return rtf.format(-min, 'minute');
-  if (min < 48 * 60) return rtf.format(-Math.round(min / 60), 'hour');
-  return rtf.format(-Math.round(min / 1440), 'day');
+  if (min < 1) return [Math.max(0, Math.round(ms / 1000)), 'second'];
+  if (min < 60) return [min, 'minute'];
+  if (min < 48 * 60) return [Math.round(min / 60), 'hour'];
+  return [Math.round(min / 1440), 'day'];
 }
 
 @Component({
@@ -56,9 +57,9 @@ function relative(rtf: Intl.RelativeTimeFormat, ms: number): string {
               >
             </p>
             <p class="listeners">
-              <span class="muted">{{ i18n.t()('dashboard.sync.lastSync') }} :</span>
+              <span class="muted">{{ i18n.t()('login.stats.lastSync') }} :</span>
               @for (l of listeners(); track l.eco) {
-                <span [title]="i18n.t()(l.fresh ? 'login.stats.fresh' : 'login.stats.stale')">
+                <span [title]="l.title">
                   <span class="dot" [class.fresh]="l.fresh" aria-hidden="true"></span>
                   <eco-icon [ecosystem]="l.eco" />
                   {{ l.label }}
@@ -143,8 +144,12 @@ function relative(rtf: Intl.RelativeTimeFormat, ms: number): string {
       .stats .listeners {
         font-size: 0.8rem;
       }
+      .stats .listeners {
+        gap: 0.4rem 0.8rem;
+      }
       .stats .listeners > span {
         display: inline-flex;
+        white-space: nowrap;
         align-items: center;
         gap: 0.3rem;
       }
@@ -191,13 +196,20 @@ export class LoginComponent {
   /** Last sync of each listener, "fresh" when recent enough to call it running. */
   protected readonly listeners = computed(() => {
     const s = this.stats()?.listeners ?? {};
-    const rtf = new Intl.RelativeTimeFormat(this.i18n.lang(), { numeric: 'auto' });
+    const t = this.i18n.t();
+    const lang = this.i18n.lang();
+    const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
     return REGISTRY_ECOSYSTEMS.map((eco) => {
       const iso = s[eco]?.lastSync;
       const ago = iso ? Date.now() - new Date(iso).getTime() : null;
       // npm streams changes: a sequence without timestamp still means it runs
       const fresh = ago === null ? !!s[eco]?.lastSeq : ago < STALE_AFTER_MS;
-      return { eco, fresh, label: ago === null ? '—' : relative(rtf, ago) };
+      const state = t(fresh ? 'login.stats.fresh' : 'login.stats.stale');
+      if (ago === null) return { eco, fresh, label: '—', title: `${ecoLabel(eco)} : ${state}` };
+      const [value, unit] = elapsed(ago);
+      // compact on the page ("21 s", "54 j") so that all registries fit on one line, full in the tooltip
+      const label = new Intl.NumberFormat(lang, { style: 'unit', unit, unitDisplay: 'narrow' }).format(value);
+      return { eco, fresh, label, title: `${ecoLabel(eco)} : ${rtf.format(-value, unit)} (${state})` };
     });
   });
   error = '';

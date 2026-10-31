@@ -87,8 +87,11 @@ describe('LoginComponent', () => {
     const stats = el.querySelector('.stats') as HTMLElement;
     expect(stats.textContent).toContain('12 users');
     expect(stats.textContent).toContain('340 followed artifacts');
-    expect(stats.textContent).toContain('3 minutes ago');
-    expect(stats.textContent).toContain('2 hours ago');
+    expect(stats.textContent).toContain('3m');
+    expect(stats.textContent).toContain('2h');
+    const titles = [...stats.querySelectorAll('.listeners > span[title]')].map((s) => s.getAttribute('title'));
+    expect(titles).toContain('Maven : 3 minutes ago (Running)');
+    expect(titles).toContain('PyPI : 2 hours ago (No recent sync)');
     expect([...stats.querySelectorAll('.dot')].map((d) => d.classList.contains('fresh'))).toEqual([
       true,
       true,
