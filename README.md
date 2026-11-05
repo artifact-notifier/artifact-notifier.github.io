@@ -172,7 +172,7 @@ npm run format:check  # Prettier (npm run format to fix)
 
 - **Frontend**: pushed to `main` → built and published to GitHub Pages
   (`.github/workflows/deploy-frontend.yml`).
-- **Backend**: pushed to `main` → arm64 Docker image built and pushed to GHCR
+- **Backend**: pushed to `main` → amd64 Docker image built and pushed to GHCR
   (`ghcr.io/artifact-notifier/artifact-notifier-backend`, tags `latest` and short
   commit SHA, `.github/workflows/backend-image.yml`). GitHub has no access to the
   server: the server pulls the image when a deploy is run there.
