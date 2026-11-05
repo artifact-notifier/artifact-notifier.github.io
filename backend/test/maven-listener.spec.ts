@@ -103,7 +103,7 @@ describe('MavenArtifactListener', () => {
       pages.push(page);
       if (page === 1 && !rateLimited) {
         rateLimited = true;
-        return new Response('', { status: 429, headers: { 'retry-after': '1' } });
+        return new Response('', { status: 429, headers: { 'retry-after': '0' } });
       }
       const ts = page === 0 ? 300 : 50; // page 1 reaches lastSync
       const components = Array.from({ length: 20 }, (_, i) => component('g', `a${page}-${i}`, '1', ts - i));
@@ -114,7 +114,7 @@ describe('MavenArtifactListener', () => {
     await listener.poll();
 
     expect(pages).toEqual([0, 1, 1]);
-    expect((listener as any).sleep).toHaveBeenCalledWith(1000);
+    expect((listener as any).sleep).toHaveBeenCalledWith(30000); // "Retry-After: 0" must not retry in a tight loop
     expect(notified()).toEqual(['u1:4.1.2']);
   });
 

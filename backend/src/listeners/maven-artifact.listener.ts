@@ -125,8 +125,9 @@ export class MavenArtifactListener extends ArtifactListener<number> implements O
         const is429 = msg.includes('429');
         if (is429) {
           const retryAfter = this.parseRetryAfter((e as any).retryAfter);
-          // Observed window ~4min30, wait a fixed 30s (or Retry-After if provided)
-          const waitMs = retryAfter ?? RETRY_429_MS;
+          // Observed window ~4min30, wait at least 30s: Central may send "Retry-After: 0",
+          // which would retry in a tight loop
+          const waitMs = Math.max(retryAfter ?? 0, RETRY_429_MS);
           this.logger.warn(
             `[Maven] 429 rate-limited page=${page} after ${Date.now() - t0}ms, retrying same page in ${waitMs}ms`,
           );
