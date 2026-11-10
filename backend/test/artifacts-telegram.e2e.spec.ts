@@ -47,23 +47,46 @@ describe('artifact search', () => {
     expect(String(fetch.mock.calls[0][0])).toBe('https://registry.npmjs.org/-/v1/search?text=react&size=10');
   });
 
-  it('searches Maven Central', async () => {
-    routeFetch(
-      () =>
-        new Response(
-          JSON.stringify({
-            components: [
-              { namespace: 'org.example', name: 'lib', description: 'A lib' },
-              { namespace: 'org.example', name: 'other', latestVersionInfo: { version: '2.0' } },
-            ],
-          }),
-        ),
-    );
-    const res = await api().get('/api/artifacts/search?ecosystem=MAVEN&q=example').set(auth);
+  it('searches Maven by artifactId, the most published first', async () => {
+    const urls: string[] = [];
+    routeFetch((url) => {
+      urls.push(url);
+      const q = new URL(url).searchParams.get('q');
+      const docs =
+        q === 'a:"guava"'
+          ? [
+              { id: 'dev.mccue:guava', versionCount: 3 },
+              { id: 'com.google.guava:guava', versionCount: 120 },
+            ]
+          : [{ id: 'com.google.guava:guava' }, { id: 'org.example:guava-extra' }];
+      return new Response(JSON.stringify({ response: { docs } }));
+    });
+    const res = await api().get('/api/artifacts/search?ecosystem=MAVEN&q=guava').set(auth);
     expect(res.body).toEqual([
-      { coordinates: 'org.example:lib', description: 'A lib' },
-      { coordinates: 'org.example:other', description: '2.0' },
+      { coordinates: 'com.google.guava:guava' },
+      { coordinates: 'dev.mccue:guava' },
+      { coordinates: 'org.example:guava-extra' },
     ]);
+    expect(urls.every((u) => u.startsWith('https://search.maven.org/solrsearch/select?'))).toBe(true);
+  });
+
+  it('finds exact Maven coordinates on repo1 when the search index lacks them', async () => {
+    routeFetch((url) =>
+      url.includes('repo1.maven.org/maven2/org/example/fresh/maven-metadata.xml')
+        ? new Response(
+            '<metadata><versioning><versions><version>1.0</version><version>1.1</version></versions></versioning></metadata>',
+          )
+        : new Response(JSON.stringify({ response: { docs: [] } })),
+    );
+    const res = await api().get('/api/artifacts/search?ecosystem=MAVEN&q=org.example:fresh').set(auth);
+    expect(res.body).toEqual([{ coordinates: 'org.example:fresh', description: '1.1' }]);
+  });
+
+  it('returns no Maven result when the search is down', async () => {
+    routeFetch(() => new Response('<html>blocked</html>', { status: 403 }));
+    const res = await api().get('/api/artifacts/search?ecosystem=MAVEN&q=guava').set(auth);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
   });
 
   it('looks PyPI projects up by name', async () => {

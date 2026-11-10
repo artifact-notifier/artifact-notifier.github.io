@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { Ecosystem } from '@prisma/client';
-import { CRATES_USER_AGENT, escapeGoModulePath, fetchAllVersions } from './version-sources';
+import { CRATES_USER_AGENT, escapeGoModulePath, fetchAllVersions, fetchMavenVersions } from './version-sources';
 import { isPrerelease, compareVersions, pickCurrentVersion } from './versions';
 import { parseRules, serializeRules, VersionRule } from './version-rules';
 import { normalizeCoordinates } from './coordinates';
@@ -33,6 +33,7 @@ export interface FollowedEntry {
 
 @Injectable()
 export class ArtifactsService {
+  private readonly logger = new Logger(ArtifactsService.name);
   private publicStats: { at: number; value: Promise<PublicStats> } | null = null;
 
   constructor(
@@ -157,19 +158,64 @@ export class ArtifactsService {
     }));
   }
 
+  /**
+   * The Central Portal search API is internal and blocked (Cloudflare 403) since 2026-11:
+   * search.maven.org (official, but its index is frozen since 2026-06) plus an exact
+   * `group:artifact` lookup on repo1 for artifacts published since. Indexed versions are
+   * stale, so only the exact lookup shows one.
+   */
   private async searchMaven(q: string): Promise<{ coordinates: string; description?: string }[]> {
-    const res = await fetch('https://central.sonatype.com/api/internal/browse/components', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ page: 0, size: 10, searchTerm: q, filter: [] }),
-      signal: AbortSignal.timeout(8000),
-    });
+    // quotes and backslashes would break out of the Solr phrase queries
+    const term = q.trim().replace(/["\\]/g, '');
+    const [g, a] = term.split(':');
+    const exact = a ? this.mavenExact(`${g}:${a}`) : Promise.resolve([]);
+    const solr = (query: string, rows: number) =>
+      this.mavenSolr(query, rows).catch((e: Error) => {
+        this.logger.warn(`Maven search failed: ${e.message}`);
+        return [] as { id: string; versionCount?: number }[];
+      });
+    let docs: { id: string; versionCount?: number }[];
+    if (a) {
+      docs = await solr(`g:"${g}" AND a:"${a}"`, 10);
+    } else if (/^[\w.-]+$/.test(term)) {
+      // exact artifactId first, then full text. The reference artifact usually has its name
+      // in the groupId (junit:junit, org.projectlombok:lombok), then the most published wins.
+      const [byArtifact, text] = await Promise.all([solr(`a:"${term}"`, 30), solr(term, 10)]);
+      const head = term.toLowerCase().split('-')[0];
+      const owned = (id: string) => (id.split(':')[0].toLowerCase().includes(head) ? 1 : 0);
+      byArtifact.sort((x, y) => owned(y.id) - owned(x.id) || (y.versionCount ?? 0) - (x.versionCount ?? 0));
+      docs = [...byArtifact, ...text];
+    } else {
+      docs = await solr(term, 10);
+    }
+    const results = [...(await exact), ...docs.map((d) => ({ coordinates: d.id }))];
+    return results.filter((r, i) => results.findIndex((o) => o.coordinates === r.coordinates) === i).slice(0, 10);
+  }
+
+  private async mavenSolr(query: string, rows: number, retry = true): Promise<{ id: string; versionCount?: number }[]> {
+    const url = `https://search.maven.org/solrsearch/select?q=${encodeURIComponent(query)}&rows=${rows}&wt=json`;
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    } catch (e) {
+      // search.maven.org sometimes hangs on a request, a second one usually answers at once
+      if (retry && (e as Error).name === 'TimeoutError') return this.mavenSolr(query, rows, false);
+      throw e;
+    }
+    if (!res.ok) throw new Error(`search.maven.org ${res.status}`);
     const json = await res.json();
-    const components = json?.components || [];
-    return components.map((c: any) => ({
-      coordinates: `${c.namespace}:${c.name}`,
-      description: c.description ?? c.latestVersionInfo?.version,
-    }));
+    return json?.response?.docs ?? [];
+  }
+
+  /** `group:artifact` as typed, when repo1 knows it (latest version as description). */
+  private async mavenExact(coordinates: string): Promise<{ coordinates: string; description?: string }[]> {
+    try {
+      const versions = await fetchMavenVersions(coordinates);
+      if (!versions?.length) return [];
+      return [{ coordinates, description: versions[versions.length - 1].version }];
+    } catch {
+      return [];
+    }
   }
 
   private async searchPypi(q: string): Promise<{ coordinates: string; description?: string }[]> {
