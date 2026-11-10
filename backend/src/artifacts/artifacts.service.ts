@@ -236,10 +236,8 @@ export class ArtifactsService {
    * path, looked up on the proxy. Its latest version serves as description.
    */
   private async searchGo(q: string): Promise<{ coordinates: string; description?: string }[]> {
-    const path = q
-      .trim()
-      .replace(/^https?:\/\//, '')
-      .replace(/\/+$/, '');
+    let path = q.trim().replace(/^https?:\/\//, '');
+    while (path.endsWith('/')) path = path.slice(0, -1);
     // module paths start with a domain name
     if (!/^[\w-]+(\.[\w-]+)+(\/[\w.~-]+)*$/.test(path)) return [];
     try {

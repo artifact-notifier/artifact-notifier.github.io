@@ -17,17 +17,18 @@ export function parseGoMod(content: string, file: string): ManifestResult {
   let block: string | null = null;
 
   for (const raw of clean(content).split('\n')) {
-    const indirect = /\/\/\s*indirect\b/.test(raw);
-    const line = raw.replace(/\/\/.*$/, '').trim();
+    const slash = raw.indexOf('//');
+    const indirect = slash >= 0 && /^indirect\b/.test(raw.slice(slash + 2).trimStart());
+    const line = (slash >= 0 ? raw.slice(0, slash) : raw).trim();
     if (!line) continue;
     if (block) {
       if (line === ')') block = null;
       else directive(block, line, indirect);
       continue;
     }
-    const m = /^(\w+)\s*(.*)$/.exec(line);
-    if (!m) continue;
-    const [, verb, rest] = m;
+    const verb = /^\w+/.exec(line)?.[0];
+    if (!verb) continue;
+    const rest = line.slice(verb.length).trim();
     if (rest === '(') block = verb;
     else directive(verb, rest, indirect);
   }
