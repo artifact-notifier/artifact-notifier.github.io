@@ -11,9 +11,11 @@ const NB_ROWS_PER_PAGE = 20;
 const POLLING_TIME_IN_MS = 60 * 1000;
 const CENTRAL_BROWSE_URL = 'https://central.sonatype.com/api/internal/browse/components';
 const MAX_PAGE = 499; // page 500 (size 20 = 10000 artifacts) returns 500, API limit
-// Safety net: the browse API only exposes the latest version of a component, and
-// repo1 metadata may lag behind it, so followed artifacts are also re-checked periodically.
-const SWEEP_TIME_IN_MS = 30 * 60 * 1000;
+// Followed artifacts are also re-checked from repo1 metadata: the browse API only exposes
+// the latest version of a component, and it is an internal API that may be blocked (403).
+const SWEEP_TIME_IN_MS = 15 * 60 * 1000;
+// The browse API answers 403 (Cloudflare) since 2026-11-06: retry it rarely, the sweep does the job meanwhile
+const FORBIDDEN_BACKOFF_MS = 6 * 60 * 60 * 1000;
 
 interface MavenDoc {
   id: string;
@@ -35,6 +37,7 @@ export class MavenArtifactListener extends ArtifactListener<number> implements O
   defaultSequence = Date.now();
   private running = false;
   private sweeping = false;
+  private pollBlockedUntil = 0;
 
   constructor(artifacts: ArtifactsService, notifications: NotificationsService, prisma: PrismaService) {
     super(artifacts, notifications, prisma);
@@ -54,12 +57,18 @@ export class MavenArtifactListener extends ArtifactListener<number> implements O
 
   @Interval(POLLING_TIME_IN_MS)
   async poll() {
-    if (this.running) return;
+    if (this.running || Date.now() < this.pollBlockedUntil) return;
     this.running = true;
     try {
       await this.getSince();
     } catch (e) {
-      this.logger.error(`Error while querying Maven API: ${(e as Error).message}`);
+      const msg = (e as Error).message;
+      if (msg.includes(' 403')) {
+        this.pollBlockedUntil = Date.now() + FORBIDDEN_BACKOFF_MS;
+        this.logger.warn(`[Maven] browse API forbidden (403), polling paused 6h, followed artifacts still swept`);
+      } else {
+        this.logger.error(`Error while querying Maven API: ${msg}`);
+      }
     } finally {
       this.running = false;
     }
@@ -74,6 +83,8 @@ export class MavenArtifactListener extends ArtifactListener<number> implements O
       this.logger.log(`[Maven] sweep start: ${coordinates.length} followed artifacts`);
       for (const c of coordinates) await this.checkVersions(c);
       this.logger.log(`[Maven] sweep done`);
+      // the sweep alone keeps followed artifacts up to date: it counts as a sync
+      await this.updateTimestampAlias(Date.now());
     } finally {
       this.sweeping = false;
     }

@@ -141,6 +141,30 @@ describe('MavenArtifactListener', () => {
     expect(listener.sequence).toBe(10);
   });
 
+  it('pauses polling for 6h when the browse API is forbidden', async () => {
+    await listener.start();
+    listener.sequence = 10;
+    let calls = 0;
+    routeFetch(() => {
+      calls++;
+      return new Response('cloudflare', { status: 403, statusText: 'Forbidden' });
+    });
+    jest.spyOn((listener as any).logger, 'warn').mockImplementation(() => undefined);
+    await listener.poll();
+    await listener.poll();
+    expect(calls).toBe(1);
+    expect(listener.sequence).toBe(10);
+  });
+
+  it('records the sweep as the last sync', async () => {
+    await listener.start();
+    routeFetch(() => new Response(metadata('4.1.1')));
+    const before = Date.now();
+    await listener.sweep();
+    const row = await prisma.listenerSequence.findUnique({ where: { id: 'MavenArtifactListenerTimestamp' } });
+    expect(Number(row?.value)).toBeGreaterThanOrEqual(before);
+  });
+
   it('sweeps every followed artifact', async () => {
     await listener.start();
     routeFetch(() => new Response(metadata('4.0.8', '4.1.1', '4.1.4')));
